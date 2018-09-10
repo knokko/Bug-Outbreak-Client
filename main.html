@@ -1,0 +1,66 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+canvas {
+  border:1px solid #d3d3d3;
+  background-color: #f1f1f1;
+}
+html, body {
+	width: 100%;
+    height: 100%;
+    margin: 0px;
+    border: 0;
+    overflow: hidden;
+    display: block;
+}
+</style>
+</head>
+<body onload="main()">
+<script src="../../../libraries/Utilities.js"></script>
+<script src="../../../libraries/BitHelper.js"></script>
+<script src="../../../libraries/BitProtocol.js"></script>
+<script src="../../../libraries/LocalStorage.js"></script>
+<script src="../../../libraries/Random.js"></script>
+<script src="../../../libraries/Hasher.js"></script>
+<script src="../../../libraries/Images.js"></script>
+<script src="../../../libraries/WebClient.js"></script>
+<script src="../../../libraries/Gui.js"></script>
+
+<script src="main.js"></script>
+<script src="GameUtils.js"></script>
+
+<script src="storage/LocalModels.js"></script>
+
+<script src="profile/ProfileEntityModel.js"></script>
+<script src="world/entity/model/EntityModel.js"></script>
+<script src="world/entity/model/EntityTexture.js"></script>
+<script src="world/entity/model/RawEntityModel.js"></script>
+<script src="world/entity/model/skeleton/Skeleton.js"></script>
+<script src="world/entity/model/skeleton/Part.js"></script>
+<script src="world/entity/model/skeleton/animation/Animations.js"></script>
+<script src="world/entity/model/skeleton/animation/AnimationNone.js"></script>
+
+<script src="gui/TextProperties.js"></script>
+<script src="gui/menu/main/Login.js"></script>
+<script src="gui/menu/main/Register.js"></script>
+<script src="gui/menu/main/AfterAuth.js"></script>
+<script src="gui/menu/realm/select/Overview.js"></script>
+<script src="gui/menu/realm/select/List.js"></script>
+<script src="gui/menu/realm/select/Selected.js"></script>
+<script src="gui/menu/profile/Overview.js"></script>
+<script src="gui/menu/profile/models/Overview.js"></script>
+<script src="gui/menu/profile/models/List.js"></script>
+<script src="gui/menu/profile/models/Selected.js"></script>
+<script src="gui/menu/account/Overview.js"></script>
+
+<script src="connection/Manager.js"></script>
+<script src="connection/protocol/auth/Code.js"></script>
+<script src="connection/protocol/auth/Listener.js"></script>
+<script src="connection/protocol/auth/Speaker.js"></script>
+<script src="connection/protocol/profile/Code.js"></script>
+<script src="connection/protocol/profile/Speaker.js"></script>
+<script src="connection/protocol/profile/Listener.js"></script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-Game.menus.profile.models.list = new Gui.Menu('rgb(0,150,120)', function(){
+Game.menuComponents.profile.models.list = new Gui.Menu('rgb(0,150,120)', function(){
 	const modelNames = Game.profile.serverModelNames;
 	for(let index = 0; index < modelNames.length; index++){
 		this.addComponent(new ProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);

@@ -23,6 +23,13 @@ const Game = {
 			
 		}
 	},
+	menuComponents : {
+		profile : {
+			models : {
+				
+			}
+		}
+	}
 	profile: {
 		models : {}
 	}

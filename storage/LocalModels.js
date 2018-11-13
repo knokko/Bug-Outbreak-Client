@@ -1,4 +1,4 @@
-function loadLocalProfileModels(){
+function loadLocalProfileEntityModels(){
 	let models;
 	const input = createLocalStorageInput('profileEntityModelNames');
 	if(input){
@@ -14,7 +14,7 @@ function loadLocalProfileModels(){
 	Game.profile.localModelNames = models;
 }
 
-function loadLocalProfileModel(name){
+function loadLocalProfileEntityModel(name){
 	const input = createLocalStorageInput('profileEntityModel' + name);
 	if(input){
 		const model= loadProfileEntityModel(input);

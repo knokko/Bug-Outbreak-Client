@@ -12,6 +12,7 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 	// Initialize in addComponents
 	this.camera = null;
 	this.viewMode = ModelViewMode.ABSTRACT;
+	this.selected = null;
 }
 
 extendProtoType(Gui.Menu, GuiModelEditor);
@@ -25,7 +26,7 @@ GuiModelEditor.prototype.tabActiveProperties = TextProperties.tab('rgb(130,130,2
 GuiModelEditor.prototype.addComponents = function(){
 	this.camera = new Gui3D.Camera(70, 0.01, 1000, this.state.getWidth(), this.state.getHeight(), 0, 0, 5, 0, 0, 0);
 	this.addComponent(new Gui.BackgroundComponent(this.backgroundColor), 0.0, 0.9, 1.0, 1.0);
-	this.addComponent(new ModelEditorRenderComponent(this), 0.05, 0.05, 0.6, 0.9);
+	this.addComponent(new ModelEditorModelComponent(this), 0.05, 0.05, 0.6, 0.9);
 	this.addFullComponent(ModelEditorToolbars.createFile(this));
 	this.addFullComponent(ModelEditorToolbars.createAdd(this));
 };

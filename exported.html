@@ -1,0 +1,5107 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+canvas {
+  border:1px solid #d3d3d3;
+  background-color: #f1f1f1;
+}
+html, body {
+	width: 100%;
+    height: 100%;
+    margin: 0px;
+    border: 0;
+    overflow: hidden;
+    display: block;
+}
+</style>
+</head>
+<body onload="main()">
+<script>
+'use strict';
+
+//source from file libraries/Utilities.js
+
+//library source from Utilities/Arrays.js
+function javaArrayCopy(source, sourcePos, dest, destPos, length){
+	if(source === dest){//make a copy because strange things could happen otherwise
+		const copy = source.slice(0, source.length);
+		for(let count = 0; count < length; count++){
+			dest[destPos + count] = copy[sourcePos + count];
+		}
+	}
+	else {
+		for(let count = 0; count < length; count++){
+			dest[destPos + count] = source[sourcePos + count];
+		}
+	}
+}
+
+//library source from Utilities/Prototypes.js
+function extendProtoType(superFunction, subFunction){
+	subFunction.prototype = Object.create(superFunction.prototype);
+	subFunction.prototype.constructor = subFunction;
+}
+
+//library source from Utilities/Maths.js
+if(window.toRadians === undefined){
+	window.toRadians = function(degrees){
+		return degrees * Math.PI / 180;
+	};
+}
+
+if(window.toDegrees === undefined){
+	window.toDegrees = function(radians){
+		return radians * 180 / Math.PI;
+	};
+}
+
+function roundTo0(number){
+	if(number > 0){
+		return Math.floor(number);
+	}
+	return Math.ceil(number);
+}
+
+//source from file libraries/BitHelper.js
+
+//library source from BitHelper/BitHelper.js
+const BitHelper = {
+	BOOLEANS : new Array(256),
+	POWERS : new Array(53),
+	toSignedByte: function(unsigned){
+		if(unsigned > 127){
+			return unsigned - 256;
+		}
+		return unsigned;
+	},
+	toUnsignedByte : function(signed){
+		if(signed < 0){
+			return signed + 256;
+		}
+		return signed;
+	},
+	javaByteCast : function(number){
+		const divider = roundTo0(number / 256);
+		number -= divider * 256;
+		if(number > 127){
+			return number - 256;
+		}
+		if(number < -128){
+			return number + 256;
+		}
+		return number;
+	},
+	javaCharCast : function(number){
+		return number - 65536 * Math.floor(number / 65536);
+	},
+	byteToBooleans : function(signed){
+		return BitHelper.BOOLEANS[BitHelper.toUnsignedByte(signed)].slice(0, 8);
+	},
+	booleansToByte : function(b1, b2, b3, b4, b5, b6, b7, b8){
+		if(Array.isArray(b1)){
+			return BitHelper.booleansToByte(b1[0], b1[1], b1[2], b1[3], b1[4], b1[5], b1[6], b1[7]);
+		}
+		let signed = 64 * b1 + 32 * b2 + 16 * b3 + 8 * b4 + 4 * b5 + 2 * b6 + 1 * b7;
+		if(!b8){
+			signed = -signed;
+			signed--;
+		}
+		return signed;
+	},
+	char0 : function(char){
+		return BitHelper.javaByteCast(char);
+	},
+	char1 : function(char){
+		return BitHelper.javaByteCast(char >> 8);
+	},
+	short0 : function(short){
+		return BitHelper.javaByteCast(short);
+	},
+	short1 : function(short){
+		return BitHelper.javaByteCast(short >> 8);
+	},
+	int0 : function(int){
+		return BitHelper.javaByteCast(int);
+	},
+	int1 : function(int){
+		return BitHelper.javaByteCast(int >> 8);
+	},
+	int2 : function(int){
+		return BitHelper.javaByteCast(int >> 16);
+	},
+	int3 : function(int){
+		return BitHelper.javaByteCast(int >> 24);
+	},
+	makeChar : function(char0, char1){
+		return BitHelper.javaCharCast((char1 << 8) | (char0 & 0xff));
+	},
+	makeShort : function(short0, short1){
+		return (short1 << 8) | (short0 & 0xff);
+	},
+	makeInt : function(int0, int1, int2, int3){
+		return ((int3 << 24) | ((int2 & 0xff) << 16) | ((int1 & 0xff) <<  8) | (int0 & 0xff));
+	},
+	getRequiredBits : function(number){
+		if(number < 0){
+			number = -number - 1;
+		}
+		let l = 1;
+		let b = 0;
+		while(l <= number){
+			l *= 2;
+			b++;
+		}
+		return b;
+	},
+	checkBitCount : function(bitCount){
+		if(bitCount < 0){
+			throw "bitCount (" + bitCount + ") can't be negative!";
+		}
+		if(bitCount > 53){
+			throw "bitCount (" + bitCount + ") can't be greater than 2^53 (" + Math.pow(2, 53) + ")";
+		}
+	},
+	checkOverflow : function(number, bitCount){
+		if(bitCount != 53 && (BitHelper.POWERS[bitCount] <= number || BitHelper.POWERS[bitCount] < -number)){
+			throw 'You need more than ' + bitCount + ' bits to store the number ' + number;
+		}
+	},
+	numberToBooleans : function(number, bitCount, allowNegative){
+		BitHelper.checkBitCount(bitCount);
+		BitHelper.checkOverflow(number, bitCount);
+		const neg = allowNegative ? 1 : 0;
+		const bools = new Array(bitCount + neg);
+		if(allowNegative){
+			if(number >= 0){
+				bools[0] = true;
+			}
+			else {
+				bools[0] = false;
+				number = -number;
+				number--;
+			}
+		}
+		for(let bit = 0; bit < bitCount; bit++){
+			if(number >= BitHelper.POWERS[bitCount - bit - 1]){
+				number -= BitHelper.POWERS[bitCount - bit - 1];
+				bools[bit + neg] = true;
+			}
+			else {
+				bools[bit + neg] = false;
+			}
+		}
+		return bools;
+	},
+	numberFromBooleans : function(bools, bitCount, allowNegative){
+		BitHelper.checkBitCount(bitCount);
+		let number = 0;
+		const neg = allowNegative ? 1 : 0;
+		for(let index = 0; index < bitCount; index++){
+			if(bools[index + neg]){
+				number += BitHelper.POWERS[bitCount - index - 1];
+			}
+		}
+		if(allowNegative && !bools[0]){
+			number = -number;
+			number--;
+		}
+		return number;
+	}
+};
+
+for(let unsigned = 0; unsigned < 256; unsigned++){
+	let signed = BitHelper.toSignedByte(unsigned);
+	BitHelper.BOOLEANS[unsigned] = [false, false, false, false, false, false, false, false];
+	if(signed >= 0){
+		BitHelper.BOOLEANS[unsigned][7] = true;
+	}
+	else {
+		signed = -signed;
+		signed--;
+	}
+	if(signed >= 64){
+		BitHelper.BOOLEANS[unsigned][0] = true;
+		signed -= 64;
+	}
+	if(signed >= 32){
+		BitHelper.BOOLEANS[unsigned][1] = true;
+		signed -= 32;
+	}
+	if(signed >= 16){
+		BitHelper.BOOLEANS[unsigned][2] = true;
+		signed -= 16;
+	}
+	if(signed >= 8){
+		BitHelper.BOOLEANS[unsigned][3] = true;
+		signed -= 8;
+	}
+	if(signed >= 4){
+		BitHelper.BOOLEANS[unsigned][4] = true;
+		signed -= 4;
+	}
+	if(signed >= 2){
+		BitHelper.BOOLEANS[unsigned][5] = true;
+		signed -= 2;
+	}
+	if(signed >= 1){
+		BitHelper.BOOLEANS[unsigned][6] = true;
+	}
+}
+
+//initialize powers
+
+(function(){
+	let power = 1;
+	for(let index = 0; index < BitHelper.POWERS.length; index++){
+		BitHelper.POWERS[index] = power;
+		power *= 2;
+	}
+}());
+
+//library source from BitHelper/input/BitInput.js
+BitHelper.BitInput = function(){};
+
+BitHelper.BitInput.prototype.readShort = function(){
+	return BitHelper.makeShort(this.readByte(), this.readByte());
+};
+
+BitHelper.BitInput.prototype.readChar = function(){
+	return BitHelper.makeChar(this.readByte(), this.readByte());
+};
+
+BitHelper.BitInput.prototype.readInt = function(){
+	return BitHelper.makeInt(this.readByte(), this.readByte(), this.readByte(), this.readByte());
+};
+
+BitHelper.BitInput.prototype.readBooleans = function(amount){
+	const array = new Array(amount);
+	for(let index = 0; index < amount; index++){
+		array[index] = this.readBoolean();
+	}
+	return array;
+};
+
+BitHelper.BitInput.prototype.readBytes = function(amount){
+	const array = new Int8Array(amount);
+	for(let index = 0; index < amount; index++){
+		array[index] = this.readByte();
+	}
+	return array;
+};
+
+BitHelper.BitInput.prototype.readShorts = function(amount){
+	const array = new Int16Array(amount);
+	for(let index = 0; index < amount; index++){
+		array[index] = this.readShort();
+	}
+	return array;
+};
+
+BitHelper.BitInput.prototype.readChars = function(amount){
+	const array = new Uint16Array(amount);
+	for(let index = 0; index < amount; index++){
+		array[index] = this.readChar();
+	}
+	return array;
+};
+
+BitHelper.BitInput.prototype.readInts = function(amount){
+	const array = new Int32Array(amount);
+	for(let index = 0; index < amount; index++){
+		array[index] = this.readInt();
+	}
+	return array;
+};
+
+BitHelper.BitInput.prototype.readBooleanArray = function(){
+	return this.readBooleans(this.readInt());
+};
+
+BitHelper.BitInput.prototype.readByteArray = function(){
+	return this.readBytes(this.readInt());
+};
+
+BitHelper.BitInput.prototype.readShortArray = function(){
+	return this.readShorts(this.readInt());
+};
+
+BitHelper.BitInput.prototype.readCharArray = function(){
+	return this.readChars(this.readInt());
+};
+
+BitHelper.BitInput.prototype.readIntArray = function(){
+	return this.readInts(this.readInt());
+};
+
+BitHelper.BitInput.prototype.readNumber = function(bitCount, allowNegative){
+	let size = bitCount;
+	if(allowNegative){
+		size++;
+	}
+	return BitHelper.numberFromBooleans(this.readBooleans(size), bitCount, allowNegative);
+};
+
+BitHelper.BitInput.prototype.readJavaString = function(){
+	const length = this.readInt();
+	if(length === -1){
+		return null;
+	}
+	const bitCount = this.readNumber(4, false) + 1;
+	let string = '';
+	for(let index = 0; index < length; index++){
+		string += String.fromCharCode(this.readNumber(bitCount, false));
+	}
+	return string;
+};
+
+//library source from BitHelper/input/ByteArrayBitInput.js
+BitHelper.ByteArrayBitInput = function(array, startIndex, terminate){
+	this.array = array;
+	this.index = startIndex ? startIndex : 0;
+	this.boolIndex = 0;
+	if(terminate){
+		this.terminate = terminate;
+	}
+};
+
+extendProtoType(BitHelper.BitInput, BitHelper.ByteArrayBitInput);
+
+BitHelper.ByteArrayBitInput.prototype.terminate = function(){}
+
+BitHelper.ByteArrayBitInput.prototype.readBoolean = function(){
+	if(this.boolIndex === 7){
+		this.boolIndex = 0;
+		return BitHelper.byteToBooleans(this.array[this.index++])[7];
+	}
+	return BitHelper.byteToBooleans(this.array[this.index])[this.boolIndex++];
+};
+
+BitHelper.ByteArrayBitInput.prototype.readByte = function(){
+	if(this.boolIndex === 0){
+		return this.array[this.index++];
+	}
+	const bools1 = BitHelper.byteToBooleans(this.array[this.index++]);
+	const bools2 = BitHelper.byteToBooleans(this.array[this.index]);//do not increaese the byteIndex because this byte is not yet finished
+	const bools = new Array(8);
+	let boolsIndex = 0;
+	for(let index = this.boolIndex; index < 8; index++){
+		bools[boolsIndex++] = bools1[index];
+	}
+	let index = 0;
+	for(; boolsIndex < 8; boolsIndex++){
+		bools[boolsIndex] = bools2[index++]
+	}
+	return BitHelper.booleansToByte(bools);
+};
+
+//library source from BitHelper/input/StringBitInput.js
+BitHelper.StringBitInput = function(string, startIndex, terminate){
+	this.string = string;
+	this.index = startIndex || 0;
+	this.boolIndex = 0;
+	if(terminate){
+		this.terminate = terminate;
+	}
+};
+
+extendProtoType(BitHelper.BitInput, BitHelper.StringBitInput);
+
+BitHelper.StringBitInput.prototype.terminate = function(){};
+
+BitHelper.StringBitInput.prototype.readBoolean = function(){
+	if(this.boolIndex < 8){
+		return BitHelper.byteToBooleans(BitHelper.char0(this.string.charCodeAt(this.index)))[this.boolIndex++];
+	}
+	if(this.boolIndex === 15){
+		this.boolIndex = 0;
+		return BitHelper.byteToBooleans(BitHelper.char1(this.string.charCodeAt(this.index++)))[7];
+	}
+	return BitHelper.byteToBooleans(BitHelper.char1(this.string.charCodeAt(this.index)))[this.boolIndex++ - 8];
+};
+
+BitHelper.StringBitInput.prototype.readByte = function(){
+	if(this.boolIndex === 0){
+		this.boolIndex = 8;
+		return BitHelper.char0(this.string.charCodeAt(this.index));
+	}
+	if(this.boolIndex === 8){
+		this.boolIndex = 0;
+		return BitHelper.char1(this.string.charCodeAt(this.index++));
+	}
+	let bools1;
+	let bools2;
+	if(this.boolIndex < 8){
+		const charCode = this.string.charCodeAt(this.index);
+		bools1 = BitHelper.byteToBooleans(BitHelper.char0(charCode));
+		bools2 = BitHelper.byteToBooleans(BitHelper.char1(charCode));
+		this.boolIndex += 8;
+	}
+	else {
+		bools1 = BitHelper.byteToBooleans(BitHelper.char1(this.string.charCodeAt(this.index++)));
+		bools2 = BitHelper.byteToBooleans(BitHelper.char0(this.string.charCodeAt(this.index)));
+		this.boolIndex -= 8;
+	}
+	const bools = new Array(8);
+	let boolsIndex = 0;
+	for(let index = this.boolIndex; index < 8; index++){
+		bools[boolsIndex++] = bools1[index];
+	}
+	let index = 0;
+	for(; boolsIndex < 8; boolsIndex++){
+		bools[boolsIndex] = bools2[index++]
+	}
+	return BitHelper.booleansToByte(bools);
+};
+
+//library source from BitHelper/output/BitOutput.js
+BitHelper.BitOutput = function(){};
+
+BitHelper.BitOutput.prototype.writeShort = function(short){
+	this.writeBytes([BitHelper.short0(short), BitHelper.short1(short)]);
+};
+
+BitHelper.BitOutput.prototype.writeChar = function(char){
+	this.writeBytes([BitHelper.char0(char), BitHelper.char1(char)]);
+};
+
+BitHelper.BitOutput.prototype.writeInt = function(int){
+	this.writeBytes([BitHelper.int0(int), BitHelper.int1(int), BitHelper.int2(int), BitHelper.int3(int)]);
+};
+
+BitHelper.BitOutput.prototype.writeBooleans = function(booleans){
+	for(let index in booleans){
+		this.writeBoolean(booleans[index]);
+	}
+};
+
+BitHelper.BitOutput.prototype.writeBytes = function(bytes){
+	for(let index in bytes){
+		this.writeByte(bytes[index]);
+	}
+};
+
+BitHelper.BitOutput.prototype.writeShorts = function(shorts){
+	for(let index in shorts){
+		this.writeShort(shorts[index]);
+	}
+};
+
+BitHelper.BitOutput.prototype.writeChars = function(chars){
+	for(let index in chars){
+		this.writeChar(chars[index]);
+	}
+};
+
+BitHelper.BitOutput.prototype.writeInts = function(ints){
+	for(let index in ints){
+		this.writeInt(ints[index]);
+	}
+};
+
+BitHelper.BitOutput.prototype.writeBooleanArray = function(array){
+	this.writeInt(array.length);
+	this.writeBooleans(array);
+};
+
+BitHelper.BitOutput.prototype.writeByteArray = function(array){
+	this.writeInt(array.length);
+	this.writeBytes(array);
+};
+
+BitHelper.BitOutput.prototype.writeShortArray = function(array){
+	this.writeInt(array.length);
+	this.writeInts(array);
+};
+
+BitHelper.BitOutput.prototype.writeCharArray = function(array){
+	this.writeInt(array.length);
+	this.writeChars(array);
+};
+
+BitHelper.BitOutput.prototype.writeIntArray = function(array){
+	this.writeInt(array.length);
+	this.writeInts(array);
+};
+
+BitHelper.BitOutput.prototype.writeNumber = function(number, bitcount, allowNegative){
+	this.writeBooleans(BitHelper.numberToBooleans(number, bitcount, allowNegative));
+};
+
+BitHelper.BitOutput.prototype.writeJavaString = function(string){
+	if(string === null || string === undefined){//java doesn't have undefined, so we will make it just null
+		this.writeInt(-1);
+		return;
+	}
+	let max = 1;
+	for(let index = 0; index < string.length; index++){
+		const charCode = string.charCodeAt(index);
+		if(charCode > max){
+			max = charCode;
+		}
+	}
+	const bitCount = BitHelper.getRequiredBits(max);
+	this.writeInt(string.length);
+	this.writeNumber(bitCount - 1, 4, false);
+	for(let index = 0; index < string.length; index++){
+		this.writeNumber(string.charCodeAt(index), bitCount, false);
+	}
+};
+
+//library source from BitHelper/output/ByteArrayBitOutput.js
+BitHelper.ByteArrayBitOutput = function(array, startIndex, terminate){
+	this.array = array ? array : new Int8Array(100);
+	this.index = startIndex ? startIndex : 0;
+	this.boolIndex = 0;
+	if(terminate){
+		this.terminate = terminate;
+	}
+};
+
+extendProtoType(BitHelper.BitOutput, BitHelper.ByteArrayBitOutput);
+
+BitHelper.ByteArrayBitOutput.prototype.writeBoolean = function(boolean){
+	if(this.boolIndex === 7){
+		this.boolIndex = 0;
+		const old = BitHelper.byteToBooleans(this.array[this.index]);
+		old[7] = boolean;
+		this.internalAddByte(BitHelper.booleansToByte(old));
+		return;
+	}
+	const bools = BitHelper.byteToBooleans(this.array[this.index]);
+	bools[this.boolIndex++] = boolean;
+	this.internalAddByte(BitHelper.booleansToByte(bools));
+	this.index--;//undo the increment of the internalAddByte
+};
+
+BitHelper.ByteArrayBitOutput.prototype.internalAddByte = function(byte){
+	if(this.index < this.array.length){
+		this.array[this.index++] = byte;
+	}
+	else {
+		const newArray = new Int8Array(this.index + 9);//add some extra space to improve performance
+		javaArrayCopy(this.array, 0, newArray, 0, this.array.length);
+		this.array = newArray;
+		this.array[this.index++] = byte;
+	}
+};
+
+BitHelper.ByteArrayBitOutput.prototype.writeByte = function(byte){
+	if(this.boolIndex === 0){
+		this.internalAddByte(byte);
+		return;
+	}
+	const bools = BitHelper.byteToBooleans(byte);
+	const current = BitHelper.byteToBooleans(this.array[this.index]);
+	let boolsIndex = 0;
+	for(let index = this.boolIndex; index < 8; index++){
+		current[index] = bools[boolsIndex++];
+	}
+	this.internalAddByte(BitHelper.booleansToByte(current));
+	const next = [false, false, false, false, false, false, false, true];
+	let nextIndex = 0;
+	for(; boolsIndex < 8; boolsIndex++){
+		next[nextIndex++] = bools[boolsIndex];
+	}
+	this.internalAddByte(BitHelper.booleansToByte(next));
+	this.index--;//the index has been increased twice
+};
+
+//library source from BitHelper/output/StringBitOutput.js
+BitHelper.StringBitOutput = function(terminate){
+	this.string = '';
+	this.boolIndex = 0;
+	this.currentBools = [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false];
+	if(terminate){
+		this.onTerminate = terminate;
+	}
+};
+
+extendProtoType(BitHelper.BitOutput, BitHelper.StringBitOutput);
+
+BitHelper.StringBitOutput.prototype.terminate = function(){
+	if(this.boolIndex > 0){
+		this.string += String.fromCharCode(BitHelper.makeChar(BitHelper.booleansToByte(this.currentBools.slice(0, 8)), BitHelper.booleansToByte(this.currentBools.slice(8, 16))));
+	}
+	if(this.onTerminate){
+		this.onTerminate();
+	}
+};
+
+BitHelper.StringBitOutput.prototype.writeBoolean = function(boolean){
+	if(this.boolIndex === 15){
+		this.boolIndex = 0;
+		this.currentBools[15] = boolean;
+		this.string += String.fromCharCode(BitHelper.makeChar(BitHelper.booleansToByte(this.currentBools.slice(0, 8)), BitHelper.booleansToByte(this.currentBools.slice(8, 16))));
+		this.currentBools = [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false];
+	}
+	else {
+		this.currentBools[this.boolIndex++] = boolean;
+	}
+};
+
+BitHelper.StringBitOutput.prototype.writeByte = function(byte){
+	const bools = BitHelper.byteToBooleans(byte);
+	for(let index = 0; index < 8; index++){
+		this.writeBoolean(bools[index]);//a custom writeByte method will barely improve performance anyway
+	}
+};
+
+//source from file libraries/BitProtocol.js
+
+//library source from BitProtocol/BitProtocol.js
+function DomainBitProtocol(amount, bitCount){
+	this.protocols = new Array(amount);
+	this.bitCount = bitCount;
+}
+
+DomainBitProtocol.prototype.register = function(domainCode, protocol){
+	this.protocols[domainCode] = protocol;
+};
+
+DomainBitProtocol.prototype.process = function(input){
+	const index = input.readNumber(this.bitCount, false);
+	if(index < this.protocols.length){//index can't be negative
+		this.protocols[index].process(input);
+	}
+	else {
+		throw 'invalid index: ' + index + ' (length is ' + this.protocols.length + ')';
+	}
+};
+
+//source from file libraries/LocalStorage.js
+
+//library source from LocalStorage/LocalStorage.js
+let canUseLocalStorage = false;
+
+(function(){
+	try {
+		const uid = 'Date: ' + new Date().getTime();
+		localStorage.setItem(uid, uid);
+		if(localStorage.getItem(uid) === uid){
+			localStorage.removeItem(uid);
+			canUseLocalStorage = true;
+		}
+	} catch(ex){}
+}());
+
+//library source from LocalStorage/LocalStorageInput.js
+function createLocalStorageInput(key){
+	if(canUseLocalStorage){
+		const value = localStorage.getItem(key);
+		if(value !== null){
+			return new BitHelper.StringBitInput(value);
+		}
+		else {
+			return undefined;
+		}
+	}
+	else {
+		return null;
+	}
+}
+
+//library source from LocalStorage/LocalStorageOutput.js
+function createLocalStorageOutput(key){
+	if(canUseLocalStorage){
+		return new LocalStorageBitOutput(key);
+	}
+	else {
+		return null;
+	}
+}
+
+function LocalStorageBitOutput(key){
+	this.key = key;
+	this.string = '';
+	this.boolIndex = 0;
+	this.currentBools = [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false];
+}
+
+extendProtoType(BitHelper.StringBitOutput, LocalStorageBitOutput);
+
+LocalStorageBitOutput.prototype.onTerminate = function(){
+	localStorage.setItem(this.key, this.string);
+};
+
+//source from file libraries/Random.js
+
+//library source from Random/Random.js
+function Random(next){
+	this.next = next;
+}
+
+Random.prototype.nextBoolean = function(){
+	return this.next();
+};
+
+Random.prototype.nextByte = function(){
+	return BitHelper.booleansToByte(this.next(), this.next(), this.next(), this.next(), this.next(), this.next(), this.next(), this.next());
+};
+
+Random.prototype.nextShort = function(){
+	return BitHelper.makeShort(this.nextByte(), this.nextByte());
+};
+
+Random.prototype.nextChar = function(){
+	return BitHelper.makeChar(this.nextByte(), this.nextByte());
+};
+
+Random.prototype.nextInt = function(bound){
+	if(bound === undefined){
+		return BitHelper.makeInt(this.nextByte(), this.nextByte(), this.nextByte(), this.nextByte());
+	}
+	const bits = BitHelper.getRequiredBits(bound - 1);
+	let result;
+	do {
+		result = BitHelper.numberFromBooleans(this.nextBooleans(bits), bits, false);
+	} while(result >= bound);
+	return result;
+};
+
+Random.prototype.nextBooleans = function(amount){
+	const result = new Array(amount);
+	for(let index = 0; index < amount; index++){
+		result[index] = this.next();
+	}
+	return result;
+};
+
+Random.prototype.nextBytes = function(amount){
+	const result = new Int8Array(amount);
+	for(let index = 0; index < amount; index++){
+		result[index] = this.nextByte();
+	}
+	return result;
+};
+
+Random.prototype.nextShorts = function(amount){
+	const result = new Int16Array(amount);
+	for(let index = 0; index < amount; index++){
+		result[index] = this.nextShort();
+	}
+	return result;
+};
+
+Random.prototype.nextChars = function(amount){
+	const result = new Uint16Array(amount);
+	for(let index = 0; index < amount; index++){
+		result[index] = this.nextChar();
+	}
+	return result;
+};
+
+Random.prototype.nextInts = function(amount){
+	const result = new Array(amount);
+	for(let index = 0; index < amount; index++){
+		result[index] = this.nextInt();
+	}
+	return result;
+};
+
+//library source from Random/PseudoRandom.js
+function PseudoRandom(seed1, seed2, seed3, seed4, seed5, seed6, seed7, seed8){
+	this.replaceCounter = 0;
+	this.shiftCounter = 0;
+	this.data = new Array(256);
+	this.setIntAt(0, seed1);
+	this.setIntAt(32, seed2);
+	this.setIntAt(64, seed3);
+	this.setIntAt(96, seed4);
+	this.setIntAt(128, seed5);
+	this.setIntAt(160, seed6);
+	this.setIntAt(192, seed7);
+	this.setIntAt(224, seed8);
+}
+
+extendProtoType(Random, PseudoRandom);
+
+PseudoRandom.prototype.parse = function(string){
+	const result = new Array(string.length);
+	for(let index = 0; index < string.length; index++){
+		const c = string.charAt(index);
+		if(c === '1'){
+			result[index] = true;
+		}
+		else if(c === '0'){
+			result[index] = false;
+		}
+		else {
+			throw 'Invalid string: ' + string;
+		}
+	}
+	return result;
+};
+
+PseudoRandom.prototype.toString = function(){
+	let string = 'PR[';
+	for(let index = 0; index < this.data.length; index++){
+		string += this.data[index] ? '1' : '0';
+	}
+	return string + ']';
+};
+
+PseudoRandom.prototype.INDEX = 77;
+
+PseudoRandom.prototype.SHIFTER = 214;
+
+PseudoRandom.prototype.HARD_MASK = PseudoRandom.prototype.parse('1101000101001000010011100000101000000101100011101001010100000010001000100100111101011100001001111011010110011100001001010010011111100001010010010001101010000110101111011010100011001000100100111100010001100010110011001001000010100101001011110111110011011100');
+
+PseudoRandom.prototype.next = function(){
+	const oldIndex = this.getIndex();
+	const result = this.data[oldIndex];
+	this.xor(oldIndex, this.HARD_MASK);
+	this.shift(this.getAt(this.SHIFTER) + 50);
+	this.replace(this.getIndex() + 69, result);
+	this.shift(this.getAt(this.getIndex() - 22) + this.shiftCounter++);
+	this.invert(this.getAt(this.getIndex() + 17));
+	this.setIndex(this.getAt(this.getIndex() - 96));
+	return result;
+};
+
+PseudoRandom.prototype.setIntAt = function(index, value){
+	this.setAt(index, BitHelper.byteToBooleans(BitHelper.int0(value)));
+	this.setAt(index + 8, BitHelper.byteToBooleans(BitHelper.int1(value)));
+	this.setAt(index + 16, BitHelper.byteToBooleans(BitHelper.int2(value)));
+	this.setAt(index + 24, BitHelper.byteToBooleans(BitHelper.int3(value)));
+};
+
+PseudoRandom.prototype.setAt = function(index, value){
+	//console.log('PseudoRandom.setAt(' + index + ',' + value + ')');
+	if(!Array.isArray(value)){
+		value = BitHelper.byteToBooleans(value - 128);
+	}
+	while(index < 0){
+		index += 256;
+	}
+	while(index >= 256){
+		index -= 256;
+	}
+	const copyAmount = 256 - index;
+	if(copyAmount >= value.length){
+		javaArrayCopy(value, 0, this.data, index, value.length);
+		//console.log(index + 'set data to ' + this.data);
+	}
+	else {
+		javaArrayCopy(value, 0, this.data, index, copyAmount);
+		javaArrayCopy(value, copyAmount, this.data, 0, value.length - copyAmount);
+	}
+};
+
+PseudoRandom.prototype.getAt = function(index, length){
+	if(length === undefined){
+		return BitHelper.booleansToByte(this.getAt(index, 8)) + 128;
+	}
+	while(index < 0){
+		index += 256;
+	}
+	while(index >= 256){
+		index -= 256;
+	}
+	const result = new Array(length);
+	const copyAmount = 256 - index;
+	if(copyAmount >= length){
+		javaArrayCopy(this.data, index, result, 0, length);
+	}
+	else {
+		javaArrayCopy(this.data, index, result, 0, copyAmount);
+		javaArrayCopy(this.data, 0, result, copyAmount, length - copyAmount);
+	}
+	return result;
+};
+
+PseudoRandom.prototype.getIndex = function(){
+	return this.getAt(this.INDEX);
+};
+
+PseudoRandom.prototype.setIndex = function(index){
+	this.setAt(this.INDEX, index);
+};
+
+PseudoRandom.prototype.xor = function(index, mask){
+	let maskIndex = 0;
+	for(; maskIndex + index < 256; maskIndex++){
+		if(mask[maskIndex]){
+			this.data[index + maskIndex] = !this.data[index + maskIndex];
+		}
+	}
+	for(; maskIndex < 256; maskIndex++){
+		if(mask[maskIndex]){
+			this.data[index + maskIndex - 256] = !this.data[index + maskIndex - 256];
+		}
+	}
+};
+
+PseudoRandom.prototype.shift = function(direction){
+	const copy = this.data.slice(0, 256);
+	this.setAt(direction, copy);
+};
+
+PseudoRandom.prototype.replace = function(baseIndex, value){
+	if(this.replaceCounter <= 0){
+		const firstIndices = new Array(32);
+		for(let i = 0; i < 32; i++){
+			firstIndices[i] = this.getAt(baseIndex + i * 8);
+		}
+		const secondIndices = new Array(256);
+		for(let i = 0; i < 32; i++){
+			secondIndices[i * 8 + 0] = this.getAt(firstIndices[i] + 0);
+			secondIndices[i * 8 + 1] = this.getAt(firstIndices[i] + 23);
+			secondIndices[i * 8 + 2] = this.getAt(firstIndices[i] + 143);
+			secondIndices[i * 8 + 3] = this.getAt(firstIndices[i] + 12);
+			secondIndices[i * 8 + 4] = this.getAt(firstIndices[i] - 74);
+			secondIndices[i * 8 + 5] = this.getAt(firstIndices[i] - 213);
+			secondIndices[i * 8 + 6] = this.getAt(firstIndices[i] + 176);
+			secondIndices[i * 8 + 7] = this.getAt(firstIndices[i] + 58);
+		}
+		const copy = this.data.slice(0, 256);
+		for(let index = 0; index < 256; index++){
+			this.data[index] = copy[secondIndices[index]];
+		}
+		this.replaceCounter = 29;
+	}
+	else {
+		this.replaceCounter--;
+		if(value){
+			this.replaceCounter--;
+		}
+	}
+};
+
+PseudoRandom.prototype.invert = function(index){
+	const bools = this.getAt(index, 15);
+	for(let i = 0; i < bools.length; i++){
+		bools[i] = !bools[i];
+	}
+	this.setAt(index, bools);
+};
+
+PseudoRandom.prototype.getData = function(){
+	return this.data.slice(0, 256);
+};
+
+//library source from Random/RandomArray.js
+function RandomArray(sources){
+	this.sources = sources;
+	this.index = 0;
+	this.counter = 0;
+}
+
+extendProtoType(Random, RandomArray);
+
+RandomArray.prototype.next = function(){
+	const result = this.sources[this.index].next();
+	this.counter++;
+	if(result){
+		this.counter++;
+	}
+	if(this.counter === 81 || this.counter === 82){
+		this.index = this.sources[this.index].nextInt(this.sources.length);
+		this.counter = 0;
+	}
+	return result;
+};
+
+RandomArray.prototype.toString = function(){
+	let string = '[';
+	for(let index = 0; index < this.sources.length; index++){
+		string += this.sources[index].toString() + ', ';
+	}
+	return string + ']';
+};
+
+function createPseudoRandomArray(bytes){
+	const source = new Array(Math.ceil(bytes.length / 32));
+	const newBytes = new Int8Array(source.length * 32);
+	javaArrayCopy(bytes, 0, newBytes, 0, bytes.length);
+	bytes = newBytes;
+	const input = new BitHelper.ByteArrayBitInput(bytes);
+	for(let index = 0; index < source.length; index++){
+		source[index] = new PseudoRandom(input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt());
+	}
+	return new RandomArray(source);
+};
+
+//source from file libraries/Hasher.js
+
+//library source from Hasher/Hasher.js
+const Hasher = {
+	clientHash : function(password, salt){
+		const buffer = new BitHelper.ByteArrayBitOutput(new Int8Array(2 * (password.length + salt.length)));
+		for(let index = 0; index < password.length; index++){
+			buffer.writeChar(password.charCodeAt(index));
+		}
+		for(let index = 0; index < salt.length; index++){
+			buffer.writeChar(salt.charCodeAt(index));
+		}
+		const random = createPseudoRandomArray(buffer.array);
+		const hash = {
+			result : random.nextInts(20)
+		};
+		const encryptor = random.nextInts(20);
+		return {
+			hashResult : hash,
+			encryptor : encryptor
+		};
+	},
+	tempHash : function(clientHash, temp1, temp2, temp3, temp4){
+		const client = clientHash.result;
+		const random = new RandomArray([
+			new PseudoRandom(client[0], client[14], client[1], client[12], temp1, temp4, client[2], client[17]), 
+				new PseudoRandom(client[3], client[19], client[4], client[10], client[5], client[15], temp2, temp3),
+				new PseudoRandom(client[6], client[11], client[7], client[13], client[8], client[16], client[9], client[18])
+		]);
+		const arrayResult = [
+			client[0] + random.nextInt() + random.nextInt() + random.nextInt(), client[7] + random.nextInt() + random.nextInt() + random.nextInt(), client[4] + random.nextInt() + random.nextInt() + random.nextInt(),
+			client[2] + random.nextInt() + random.nextInt() + random.nextInt(), client[8] + random.nextInt() + random.nextInt() + random.nextInt(), client[3] + random.nextInt() + random.nextInt() + random.nextInt(),
+			client[1] + random.nextInt() + random.nextInt() + random.nextInt(), client[6] + random.nextInt() + random.nextInt() + random.nextInt(), client[5] + random.nextInt() + random.nextInt() + random.nextInt(),
+			client[9] + random.nextInt() + random.nextInt() + random.nextInt(), client[17] + random.nextInt() + random.nextInt() + random.nextInt(), client[12] + random.nextInt() + random.nextInt() + random.nextInt(),
+			client[15] + random.nextInt() + random.nextInt() + random.nextInt(), client[19] + random.nextInt() + random.nextInt() + random.nextInt(), client[10] + random.nextInt() + random.nextInt() + random.nextInt(),
+			client[13] + random.nextInt() + random.nextInt() + random.nextInt(), client[16] + random.nextInt() + random.nextInt() + random.nextInt(), client[18] + random.nextInt() + random.nextInt() + random.nextInt(),
+			client[11] + random.nextInt() + random.nextInt() + random.nextInt(), client[14] + random.nextInt() + random.nextInt() + random.nextInt()
+		];
+		return {
+			result : arrayResult
+		};
+	},
+	encrypt : function(clientHash, encryptor){
+		const client = clientHash.result;
+		const result = new Array(20);
+		for(let index = 0; index < 20; index++){
+			result[index] = client[index] + encryptor[index];//mimic java int overflow
+			if(result[index] > 2147483647){ 
+				result[index] -= 4294967296;
+			}
+			if(result[index] < -2147483648){
+				result[index] += 4294967296;
+			}
+		}
+		return {
+			'result': result
+		};
+	},
+	decrypt : function(encrypted, encryptor){
+		const crypted = encrypted.result;
+		const result = new Array(20);
+		for(let index = 0; index < 20; index++){
+			result[index] = crypted[index] - encryptor[index];//mimic java int overflow
+			if(result[index] > 2147483647){ 
+				result[index] -= 4294967296;
+			}
+			if(result[index] < -2147483648){
+				result[index] += 4294967296;
+			}
+		}
+		return {
+			'result': result
+		};
+	}
+};
+
+//source from file libraries/Images.js
+
+//library source from Images/ImageFactory.js
+const ImageFactory = {
+	DEFAULT_TEXT_PROPERTIES : {
+		font : '10px sans-serif',
+		textColor: 'black',
+		backgroundColor: '#00000000',
+		borderColor : '#00000000',
+		horAlignment: 'middle',
+		verAlignment: 'middle',
+		borderX: 0.1,
+		borderY: 0.1,
+		marginX: 0.1,
+		marginY: 0.1,
+		resize: true
+	},
+	determineFontHeight : function(fontStyle) {
+		var body = document.getElementsByTagName("body")[0];
+		var dummy = document.createElement("div");
+		var dummyText = document.createTextNode("M");
+		dummy.appendChild(dummyText);
+		dummy.setAttribute("style", fontStyle);
+		body.appendChild(dummy);
+		var result = dummy.offsetHeight;
+		body.removeChild(dummy);
+		return result;
+	},
+	multiplyFontSize : function(context, factor) {
+		const font = context.font;
+		const indexRight = font.indexOf('px');
+		const indexLeft = font.lastIndexOf(' ', indexRight);
+		let size = parseInt(font.substring(indexLeft + 1, indexRight));
+		size *= factor;
+		context.font = font.substring(0, indexLeft) + ' ' + Math.round(size) + 'px' + font.substring(indexRight + 2);
+	},
+	ASSENT_FACTOR : 0.8,
+	createTextImage : function(text, props, width, height){
+		this.completeTextProperties(props);
+		const canvas = document.createElement('canvas');
+		let context;
+		if(width === undefined || height === undefined){
+			canvas.width = 512;
+			canvas.height = 128;
+			width = 512;
+			height = 128;
+			context = canvas.getContext('2d');
+			if(props.resize){
+				context.font = props.font;
+				let boundWidth = context.measureText(text).width;
+				let boundHeight = ImageFactory.determineFontHeight('font: ' + props.font + ';');
+				if(boundWidth !== 0 && boundHeight !== 0){
+					const whFactor = boundWidth / boundHeight;
+					canvas.width = Math.round(canvas.height * whFactor);
+					context = canvas.getContext('2d');
+					width = canvas.width;
+					height = canvas.height;
+				}
+			}
+		}
+		else {
+			canvas.width = width;
+			canvas.height = height;
+			context = canvas.getContext('2d');
+		}
+		const minBX = Math.round(width * props.borderX);
+		const minBY = Math.round(height * props.borderY);
+		const maxBX = Math.round((1 - props.borderX) * width);
+		const maxBY = Math.round((1 - props.borderY) * height);
+		const outerX = props.borderX + props.marginX;
+		const outerY = props.borderY + props.marginY;
+		const minTX = Math.round(width * outerX);
+		const minTY = Math.round(height * outerY);
+		const maxTX = Math.round((1 - outerX) * width);
+		const maxTY = Math.round((1 - outerY) * height);
+		const textWidth = maxTX - minTX + 1;
+		const textHeight = maxTY - minTY + 1;
+		context.fillStyle = props.borderColor;
+		context.fillRect(0, 0, minBX, height);
+		context.fillRect(minBX, 0, maxBX - minBX, minBY);
+		context.fillRect(maxBX, 0, width - maxBX, height);
+		context.fillRect(minBX, maxBY, maxBX - minBX, height - maxBY);
+		context.fillStyle = props.backgroundColor;
+		context.fillRect(minBX, minBY, maxBX - minBX, maxBY - minBY);
+		context.fillStyle = props.textColor;
+		context.font = props.font;
+		let boundWidth = context.measureText(text).width;
+		let boundHeight = ImageFactory.determineFontHeight('font: ' + props.font + ';');
+		if(boundWidth > 0 && boundHeight > 0){
+			const factorX = textWidth / boundWidth;
+			const factorY = textHeight / boundHeight;
+			const factor = Math.min(factorX, factorY);
+			ImageFactory.multiplyFontSize(context, factor);
+			boundWidth = context.measureText(text).width;
+			boundHeight = ImageFactory.determineFontHeight('font: ' + context.font + ';');
+			let textX;
+			if(props.horAlignment === 'middle' || factorX === factor){
+				textX = minTX + Math.round((textWidth - boundWidth) / 2);
+			}
+			else if(props.horAlignment === 'left'){
+				textX = minTX;
+			}
+			else {
+				textX = maxTX - Math.round(boundWidth);
+			}
+			let textY;//this is guessing because the text/line metrics of canvas are experimental -_-
+			if(props.verAlignment === 'middle' || factorY === factor){
+				textY = minTY + Math.round(boundHeight * ImageFactory.ASSENT_FACTOR + (textHeight - boundHeight) / 2);
+			}
+			else if(props.verAlignment === 'up'){
+				textY = minTY + Math.round(boundHeight * ImageFactory.ASSENT_FACTOR);
+			}
+			else {
+				textY = maxTY - Math.round(boundHeight * (1 - ImageFactory.ASSENT_FACTOR));
+			}
+			context.fillText(text, textX, textY);
+		}
+		const image = new Image();
+		image.src = canvas.toDataURL();
+		return image;
+	},
+	completeTextProperties : function(props){
+		for(let key in ImageFactory.DEFAULT_TEXT_PROPERTIES){
+			if(props[key] === undefined){
+				props[key] = ImageFactory.DEFAULT_TEXT_PROPERTIES[key];
+			}
+		}
+	}
+};
+
+//source from file libraries/WebClient.js
+
+//library source from WebClient/Connection.js
+const WebClient = {
+	Connection : function(ip, port, onMessage, onDisconnect, onOpen, onFailConnect){
+		this.onMessage = onMessage;
+		this.onOpen = onOpen;
+		this.isOpen = function(){
+			return this.queue === null && !this.closed;
+		}
+		this.closed = false;
+		this.sendBytes = function(array){
+			if(this.queue == null)
+				this.socket.send(array.buffer);
+			else
+				this.queue.push(array.buffer);
+		};
+		this.send = function(array){
+			let stringLength = Math.floor(array.length / 2);
+			if(stringLength * 2 != array.length)
+				stringLength++;
+			const array16 = new Uint16Array(stringLength);
+			for(let index = 0; index < stringLength - 1; index++){
+				array16[index] = 256 * array[index * 2] + array[index * 2 + 1];
+			}
+			if(this.queue == null)
+				this.socket.send(String.fromCharCode.apply(String, array16));
+			else
+				this.queue.push(String.fromCharCode.apply(String, array16));
+		};
+		this.createOutput = function(){
+			const thisClient = this;
+			return new BitHelper.ByteArrayBitOutput(undefined, undefined, function(){
+				const arrayToSend = new Int8Array(this.boolIndex === 0 ? this.index : this.index + 1);
+				javaArrayCopy(this.array, 0, arrayToSend, 0, arrayToSend.length);
+				thisClient.sendBytes(arrayToSend);
+			});
+		};
+		this.close = function(){
+			this.socket.close();
+		};
+		
+		let socketOnopen = function(event){
+			for(let index = 0; index < this.queue.length; index++){
+				this.socket.send(this.queue[index]);
+			}
+			this.queue = null;
+			if(this.onOpen){
+				this.onOpen(event);
+			}
+		};
+		socketOnopen = socketOnopen.bind(this);
+		
+		let socketOnmessage = function(event){
+			const fileReader = new FileReader();
+			const thisConnection = this;
+			fileReader.onload = function(event2) {
+				thisConnection.onMessage(new BitHelper.ByteArrayBitInput(new Int8Array(event2.target.result)));
+			};
+			fileReader.readAsArrayBuffer(event.data);
+		};
+		socketOnmessage = socketOnmessage.bind(this);
+		
+		let socketOnDisconnect = function(event){
+			if(this.isOpen()){
+				onDisconnect(event);
+			}
+			else if(onFailConnect){
+				onFailConnect(event);
+			}
+			this.closed = true;
+		};
+		socketOnDisconnect = socketOnDisconnect.bind(this);
+		
+		this.queue = [];
+		
+		this.socket = new WebSocket('ws://' + ip + ':' + port);
+		console.log('Created socket');
+		this.socket.onclose = socketOnDisconnect;
+		//this.socket.onerror = socketOnDisconnect;
+		this.socket.onopen = socketOnopen;
+		this.socket.onmessage = socketOnmessage;
+	}
+};
+
+//source from file libraries/Gui.js
+
+//library source from Gui/Gui.js
+const Gui = {};
+
+//library source from Gui/Manager.js
+Gui.Manager = function(){
+	this.mainComponent = null;
+	this.renderer = null;
+	this.mouseX = NaN;
+	this.mouseY = NaN;
+	this.dirty = true;
+};
+
+Gui.Manager.prototype.markDirty = function(){
+	this.dirty = true;
+};
+
+Gui.Manager.prototype.start = function(){
+	this.renderer = new Gui.CanvasRenderer();
+	this.renderer.start();
+	const manager = this;
+	this.guiState = new Gui.ParentComponentState(this);
+	this.mainComponent.state = this.guiState;
+	this.totalTickTime = 0;
+	this.ticks = 0;
+	if(this.mainComponent.init){
+		this.mainComponent.init();
+	}
+	window.addEventListener('click', function(event){
+		if(manager.mainComponent.click){
+			manager.mainComponent.click(event.pageX / window.innerWidth, 1 - event.pageY / window.innerHeight);
+		}
+	});
+	window.addEventListener('mousemove', function(event){
+		manager.mouseX = event.pageX / window.innerWidth;
+		manager.mouseY = 1 - event.pageY / window.innerHeight;
+		manager.markDirty();
+	});
+	window.addEventListener('mouseenter', function(event){
+		manager.mouseX = event.pageX / window.innerWidth;
+		manager.mouseY = 1 - event.pageY / window.innerHeight;
+		manager.markDirty();
+	});
+	window.addEventListener('mouseleave', function(event){
+		manager.mouseX = NaN;
+		manager.mouseY = NaN;
+		manager.markDirty();
+	});
+	window.addEventListener('resize', function(event){
+		manager.renderer.onResize();
+		manager.markDirty();
+	});
+	window.addEventListener('keypress', function(event){
+		if(event.key.length > 0 && manager.mainComponent.keyType){
+			manager.mainComponent.keyType(event.key);
+		}
+	});
+	window.addEventListener('keydown', function(event){
+		if(manager.mainComponent.keyDown){
+			manager.mainComponent.keyDown(event.key);
+		}
+		if(event.key === 't'){
+			console.log('Average tick time is ' + (manager.totalTickTime / manager.ticks) + ' ms');
+		}
+	});
+	window.addEventListener('keyup', function(event){
+		if(manager.mainComponent.keyUp){
+			manager.mainComponent.keyUp(event.key);
+		}
+	});
+	const onGuiUpdate = function(timestamp){
+		const startTime = performance.now();
+		if(manager.mainComponent.update){
+			manager.mainComponent.update();
+		}
+		if(manager.dirty){
+			manager.mainComponent.render(manager.renderer);
+			manager.dirty = false;
+		}
+		manager.totalTickTime += performance.now() - startTime;
+		manager.ticks++;
+		window.requestAnimationFrame(onGuiUpdate);
+	};
+	window.requestAnimationFrame(onGuiUpdate);
+};
+
+Gui.Manager.prototype.setMainComponent = function(component){
+	this.mainComponent = component;
+	if(this.renderer && component.init){//the renderer will be undefined until the manager has started
+		component.state = this.guiState;
+		component.init();
+	}
+	this.markDirty();
+};
+
+//library source from Gui/Texture.js
+Gui.Texture = function(width, height){
+	this.width = width;
+	this.height = height;
+	this.data = new Uint8ClampedArray(4 * width * height);
+};
+
+Gui.Texture.prototype.setPixel = function(x, y, red, green, blue, alpha){
+	let index = 4 * (x + y * this.width);
+	if(alpha === undefined){
+		alpha = 255;
+	}
+	this.data[index++] = red;
+	this.data[index++] = green;
+	this.data[index++] = blue;
+	this.data[index] = alpha;
+};
+
+Gui.Texture.prototype.getPixel = function(x, y){
+	let index = 4 * (x + y * this.width);
+	return {
+		red : this.data[index++],
+		green : this.data[index++],
+		blue : this.data[index++],
+		alpha : this.data[index]
+	};
+};
+
+Gui.Texture.prototype.fill = function(minX, minY, maxX, maxY, red, green, blue){
+	let index;
+	const width = maxX - minX + 1;
+	for(let y = minY; y <= maxY; y++){
+		index = 4 * (minX + y * this.width);
+		for(let counter = 0; counter < width; counter++){
+			this.data[index++] = red;
+			this.data[index++] = green;
+			this.data[index++] = blue;
+			this.data[index++] = 255;
+		}
+	}
+};
+
+Gui.Texture.prototype.clear = function(red, green, blue){
+	const length = this.data.length;
+	for(let index = 0; index < length; index += 4){
+		this.data[index] = red;
+		this.data[index + 1] = green;
+		this.data[index + 2] = blue;
+		this.data[index + 3] = 255;
+	}
+};
+
+Gui.Texture.prototype.clone = function(){
+	const clone = new Gui.Texture(this.width, this.height);
+	javaArrayCopy(this.data, 0, clone.data, 0, this.data.length);
+	return clone;
+};
+
+Gui.Texture.prototype.addSpaceLeft = function(extra){
+	const newData = new Uint8ClampedArray((this.width + extra) * this.height * 4);
+	for(let y = 0; y < this.height; y++){
+		javaArrayCopy(this.data, 4 * y * this.width, newData, 4 * (extra + y * (this.width + extra)), this.width * 4);
+	}
+	this.width += extra;
+	this.data = newData;
+};
+
+Gui.Texture.prototype.addSpaceRight = function(extra){
+	const newData = new Uint8ClampedArray((this.width + extra) * this.height * 4);
+	for(let y = 0; y < this.height; y++){
+		javaArrayCopy(this.data, 4 * y * this.width, newData, 4 * y * (this.width + extra), this.width * 4);
+	}
+	this.width += extra;
+	this.data = newData;
+};
+
+Gui.Texture.prototype.addSpaceUp = function(extra){
+	const newData = new Uint8ClampedArray(this.width * (this.height + extra) * 4);
+	javaArrayCopy(this.data, 0, newData, this.width * extra * 4, this.data.length);
+	this.height += extra;
+	this.data = newData;
+};
+
+Gui.Texture.prototype.addSpaceDown = function(extra){
+	const newData = new Uint8ClampedArray(this.width * (this.height + extra) * 4);
+	javaArrayCopy(this.data, 0, newData, 0, this.data.length);
+	this.height += extra;
+	this.data = newData;
+};
+
+Gui.Texture.prototype.render = function(context, minX, minY){
+	const imageData = context.createImageData(this.width, this.height);
+	javaArrayCopy(this.data, 0, imageData.data, 0, this.data.length);
+	context.putImageData(imageData, minX, minY);
+};
+
+Gui.Texture.prototype.toImageData = function(data, minX, minY, maxX, maxY, dataWidth){
+	const width = maxX - minX + 1;
+	const height = maxY - minY + 1;
+	for(let y = 0; y < height; y++){
+		for(let x = 0; x < width; x++){
+			let dataIndex = 4 * (minX + x + (minY + y) * dataWidth);
+			let ownIndex = 4 * (Math.floor(x / width * this.width) + this.width * Math.floor(y / height * this.height));
+			data[dataIndex++] = this.data[ownIndex++];
+			data[dataIndex++] = this.data[ownIndex++];
+			data[dataIndex++] = this.data[ownIndex++];
+			data[dataIndex] = this.data[ownIndex];
+		}
+	}
+}
+
+//library source from Gui/render/CanvasRenderer.js
+Gui.CanvasRenderer = function(){
+	this.width = window.innerWidth;
+	this.height = window.innerHeight;
+};
+
+Gui.CanvasRenderer.prototype.start = function(){
+	this.canvas = document.createElement('canvas');
+	this.context = this.canvas.getContext("2d");
+	document.body.insertBefore(this.canvas,document.body.childNodes[0]);
+	this.onResize();
+};
+
+Gui.CanvasRenderer.prototype.onResize = function(){
+	this.width = window.innerWidth;
+	this.height = window.innerHeight;
+	this.canvas.width = this.width;
+	this.canvas.height = this.height;
+};
+
+Gui.CanvasRenderer.prototype.clear = function(color){
+	this.context.fillStyle = color;
+	this.context.fillRect(0, 0, this.width, this.height);
+};
+
+Gui.CanvasRenderer.prototype.fillRect = function(color, minX, minY, maxX, maxY){
+	this.context.fillStyle = color;
+	if(maxX >= 0 && maxY >= 0 && minX <= 1 && minY <= 1){
+		this.context.fillRect(minX * this.width, (1 - maxY) * this.height, (maxX - minX) * this.width, (maxY - minY) * this.height);
+	}
+};
+
+Gui.CanvasRenderer.prototype.drawRect = function(color, minX, minY, maxX, maxY){
+	this.context.fillStyle = color;
+	if(maxX >= 0 && maxY >= 0 && minX <= 1 && minY <= 1){
+		this.context.strokeRect(minX * this.width, (1 - maxY) * this.height, (maxX - minX) * this.width, (maxY - minY) * this.height);
+	}
+};
+
+Gui.CanvasRenderer.prototype.renderImage = function(image, minX, minY, maxX, maxY){
+	if(maxX >= 0 && maxY >= 0 && minX <= 1 && minY <= 1){
+		this.context.drawImage(image, minX * this.width, (1 - maxY) * this.height, (maxX - minX) * this.width, (maxY - minY) * this.height);
+	}
+};
+
+Gui.CanvasRenderer.prototype.renderTexture = function(texture, minX, minY, maxX, maxY){
+	if(maxX >= 0 && maxY >= 0 && minX <= 1 && minY <= 1){
+		const minPX = Math.round(minX * this.width);
+		const minPY = Math.round((1 - maxY) * this.height);
+		const maxPX = Math.round(maxX * this.width);
+		const maxPY = Math.round((1 - minY) * this.height);
+		const imageData = this.context.createImageData(maxPX - minPX + 1, maxPY - minPY + 1);
+		texture.toImageData(imageData.data, minPX, minPY, maxPX, maxPY, maxPX - minPX + 1);
+		this.context.putImageData(imageData, minPX, minPY);
+	}
+}
+
+//library source from Gui/render/StaticChildRenderer.js
+Gui.StaticChildRenderer = function(parent){
+	this.parent = parent;
+};
+
+Gui.StaticChildRenderer.prototype.setBounds = function(minX, minY, maxX, maxY){
+	this.minX = minX;
+	this.minY = minY;
+	this.maxX = maxX;
+	this.maxY = maxY;
+	this.width = maxX - minX;
+	this.height = maxY - minY;
+};
+
+Gui.StaticChildRenderer.prototype.clear = function(color){
+	this.parent.fillRect(color, this.minX, this.minY, this.maxX, this.maxY);
+};
+
+Gui.StaticChildRenderer.prototype.fillRect = function(color, minX, minY, maxX, maxY){
+	this.parent.fillRect(color, this.minX + this.width * minX, this.minY + this.height * minY, this.minX + this.width * maxX, this.minY + this.height * maxY);
+};
+
+Gui.StaticChildRenderer.prototype.drawRect = function(color, minX, minY, maxX, maxY){
+	this.parent.drawRect(color, this.minX + this.width * minX, this.minY + this.height * minY, this.minX + this.width * maxX, this.minY + this.height * maxY);
+};
+
+Gui.StaticChildRenderer.prototype.renderImage = function(image, minX, minY, maxX, maxY){
+	this.parent.renderImage(image, this.minX + this.width * minX, this.minY + this.height * minY, this.minX + this.width * maxX, this.minY + this.height * maxY);
+};
+
+Gui.StaticChildRenderer.prototype.renderTexture = function(image, minX, minY, maxX, maxY){
+	this.parent.renderTexture(image, this.minX + this.width * minX, this.minY + this.height * minY, this.minX + this.width * maxX, this.minY + this.height * maxY);
+};
+
+//library source from Gui/render/DynamicChildRenderer.js
+Gui.DynamicChildRenderer = function(parent, minX, minY, maxX, maxY){
+	this.parent = parent;
+	this.minX = minX;
+	this.minY = minY;
+	this.maxX = maxX;
+	this.maxY = maxY;
+};
+
+Gui.DynamicChildRenderer.prototype.width = function(){
+	return this.maxX() - this.minX();
+};
+
+Gui.DynamicChildRenderer.prototype.height = function(){
+	return this.maxY() - this.minY();
+};
+
+Gui.DynamicChildRenderer.prototype.clear = function(color){
+	this.parent().fillRect(color, this.minX(), this.minY(), this.maxX(), this.maxY());
+};
+
+Gui.DynamicChildRenderer.prototype.fillRect = function(color, minX, minY, maxX, maxY){
+	this.parent().fillRect(color, this.minX() + this.width() * minX, this.minY() + this.height() * minY, this.minX() + this.width() * maxX, this.minY() + this.height() * maxY);
+};
+
+Gui.DynamicChildRenderer.prototype.drawRect = function(color, minX, minY, maxX, maxY){
+	this.parent().drawRect(color, this.minX() + this.width() * minX, this.minY() + this.height() * minY, this.minX() + this.width() * maxX, this.minY() + this.height() * maxY);
+};
+
+Gui.DynamicChildRenderer.prototype.renderImage = function(image, minX, minY, maxX, maxY){
+	this.parent().renderImage(image, this.minX() + this.width() * minX, this.minY() + this.height() * minY, this.minX() + this.width() * maxX, this.minY() + this.height() * maxY);
+};
+
+Gui.DynamicChildRenderer.prototype.renderTexture = function(image, minX, minY, maxX, maxY){
+	this.parent().renderTexture(image, this.minX() + this.width() * minX, this.minY() + this.height() * minY, this.minX() + this.width() * maxX, this.minY() + this.height() * maxY);
+};
+
+//library source from Gui/component/state/ParentComponentState.js
+Gui.ParentComponentState = function(manager){
+	this.manager = manager;
+};
+
+Gui.ParentComponentState.prototype.isMouseOver = function(){
+	return this.manager.mouseX === this.manager.mouseX && this.manager.mouseY === this.manager.mouseY;
+};
+
+Gui.ParentComponentState.prototype.getMouseX = function(){
+	return this.manager.mouseX;
+};
+
+Gui.ParentComponentState.prototype.getMouseY = function(){
+	return this.manager.mouseY;
+};
+
+Gui.ParentComponentState.prototype.getManager = function(){
+	return this.manager;
+};
+
+Gui.ParentComponentState.prototype.getWidth = function(){
+	return window.innerWidth;
+};
+
+Gui.ParentComponentState.prototype.getHeight = function(){
+	return window.innerHeight;
+};
+
+//library source from Gui/component/state/StaticChildComponentState.js
+Gui.StaticChildComponentState = function(parent){
+	this.parent = parent;
+};
+
+Gui.StaticChildComponentState.prototype.setBounds = function(minX, minY, maxX, maxY){
+	this.minX = minX;
+	this.minY = minY;
+	this.maxX = maxX;
+	this.maxY = maxY;
+};
+
+Gui.StaticChildComponentState.prototype.isMouseOver = function(){
+	const x = this.parent.getMouseX();
+	const y = this.parent.getMouseY();
+	return x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY;
+};
+
+Gui.StaticChildComponentState.prototype.getMouseX = function(){
+	return (this.parent.getMouseX() - this.minX) / (this.maxX - this.minX);
+};
+
+Gui.StaticChildComponentState.prototype.getMouseY = function(){
+	return (this.parent.getMouseY() - this.minY) / (this.maxY - this.minY);
+};
+
+Gui.StaticChildComponentState.prototype.getManager = function(){
+	return this.parent.getManager();
+};
+
+Gui.StaticChildComponentState.prototype.getWidth = function(){
+	return Math.round((this.maxX - this.minX) * this.parent.getWidth());
+};
+
+Gui.StaticChildComponentState.prototype.getHeight = function(){
+	return Math.round((this.maxY - this.minY) * this.parent.getHeight());
+};
+
+//library source from Gui/component/state/DynamicChildComponentState.js
+Gui.DynamicChildComponentState = function(parent, minX, minY, maxX, maxY){
+	this.parent = parent;
+	this.minX = minX;
+	this.minY = minY;
+	this.maxX = maxX;
+	this.maxY = maxY;
+};
+
+Gui.DynamicChildComponentState.prototype.isMouseOver = function(){
+	const x = this.parent().getMouseX();
+	const y = this.parent().getMouseY();
+	return x >= this.minX() && x <= this.maxX() && y >= this.minY() && y <= this.maxY();
+};
+
+Gui.DynamicChildComponentState.prototype.getMouseX = function(){
+	const minX = this.minX();
+	return (this.parent().getMouseX() - minX) / (this.maxX() - minX);
+};
+
+Gui.DynamicChildComponentState.prototype.getMouseY = function(){
+	const minY = this.minY();
+	return (this.parent().getMouseY() - minY) / (this.maxY() - minY);
+};
+
+Gui.DynamicChildComponentState.prototype.getManager = function(){
+	return this.parent().getManager();
+};
+
+Gui.DynamicChildComponentState.prototype.getWidth = function(){
+	return Math.round((this.maxX() - this.minX()) * this.parent().getWidth());
+};
+
+Gui.DynamicChildComponentState.prototype.getHeight = function(){
+	return Math.round((this.maxY() - this.minY()) * this.parent().getHeight());
+};
+
+//library source from Gui/component/WrapperComponent.js
+Gui.WrapperComponent = function(component){
+	this.component = component;
+};
+
+Gui.WrapperComponent.prototype.init = function(){
+	if (this.component) {
+		this.component.state = this.state;
+		if (this.component.init) {
+			this.component.init();
+		}
+	}
+};
+
+Gui.WrapperComponent.prototype.render = function(renderer){
+	if (this.component) {
+		this.component.render(renderer);
+	}
+};
+
+Gui.WrapperComponent.prototype.update = function(){
+	if(this.component && this.component.update){
+		this.component.update();
+	}
+};
+
+Gui.WrapperComponent.prototype.click = function(x, y){
+	if(this.component && this.component.click){
+		this.component.click(x, y);
+	}
+};
+
+Gui.WrapperComponent.prototype.keyUp = function(key){
+	if(this.component && this.component.keyUp){
+		this.component.keyUp(key);
+	}
+};
+
+Gui.WrapperComponent.prototype.keyDown = function(key){
+	if(this.component && this.component.keyDown){
+		this.component.keyDown(key);
+	}
+};
+
+Gui.WrapperComponent.prototype.keyType = function(key){
+	if(this.component && this.component.keyType){
+		this.component.keyType(key);
+	}
+};
+
+Gui.WrapperComponent.prototype.setComponent = function(component){
+	this.component = component;
+	this.init();
+	this.state.getManager().markDirty();
+};
+
+//library source from Gui/component/BackgroundComponent.js
+Gui.BackgroundComponent = function(baseColor, hoverColor, onClick){
+	this.baseColor = baseColor;
+	this.hoverColor = hoverColor || baseColor;
+	this.click = onClick;
+};
+
+Gui.BackgroundComponent.prototype.render = function(renderer){
+	if(this.state.isMouseOver()){
+		renderer.clear(this.hoverColor);
+	}
+	else {
+		renderer.clear(this.baseColor);
+	}
+};
+
+//library source from Gui/component/ImageComponent.js
+Gui.ImageComponent = function(baseImage, hoverImage, onclick){
+	this.baseImage = baseImage;
+	this.hoverImage = hoverImage;
+};
+
+Gui.ImageComponent.prototype.render = function(renderer){
+	if(this.hoverImage && this.state.isMouseOver()){
+		renderer.renderImage(this.hoverImage, 0, 0, 1, 1);
+	}
+	else {
+		renderer.renderImage(this.baseImage, 0, 0, 1, 1);
+	}
+};
+
+Gui.ImageComponent.prototype.setBaseImage = function(image){
+	this.baseImage = image;
+	if(this.state){
+		this.state.getManager().markDirty();
+	}
+};
+
+Gui.ImageComponent.prototype.setHoverImage = function(image){
+	this.hoverImage = image;
+	if(this.state){
+		this.state.getManager().markDirty();
+	}
+};
+
+//library source from Gui/component/TextComponent.js
+Gui.TextComponent = function(text, props, hoverProps, onClick, fixedImageWidth, fixedImageHeight){
+	this.text = text;
+	this.props = props;
+	this.hoverProps = hoverProps;
+	this.fixedImageWidth = fixedImageWidth;
+	this.fixedImageHeight = fixedImageHeight;
+	this.refreshImages();
+	this.click = onClick;
+};
+
+extendProtoType(Gui.ImageComponent, Gui.TextComponent);
+
+Gui.TextComponent.prototype.refreshImages = function(){
+	this.refreshBaseImage();
+	this.refreshHoverImage();
+};
+
+Gui.TextComponent.prototype.refreshBaseImage = function(){
+	this.setBaseImage(this.createImage(this.text, this.props));
+};
+
+Gui.TextComponent.prototype.refreshHoverImage = function(){
+	if(this.hoverProps){
+		this.setHoverImage(this.createImage(this.text, this.hoverProps));
+	}
+	else {
+		this.setHoverImage(undefined);
+	}
+};
+
+Gui.TextComponent.prototype.createImage = function(text, props){
+	return ImageFactory.createTextImage(text, props, this.fixedImageWidth || Math.max(60 * this.text.length, 64), this.fixedImageHeight || 128);
+};
+
+Gui.TextComponent.prototype.setText = function(text){
+	this.text = text;
+	this.refreshImages();
+};
+
+Gui.TextComponent.prototype.setProps = function(props){
+	this.props = props;
+	this.refreshBaseImage();
+};
+
+Gui.TextComponent.prototype.setHoverProps = function(props){
+	this.hoverProps = props;
+	this.refreshHoverImage();
+};
+
+//library source from Gui/component/ActivatableTextComponent.js
+Gui.ActivatableTextComponent = function(text, props, hoverProps, activeProps, onClick, isActive, fixedImageWidth, fixedImageHeight){
+	this.text = text;
+	this.props = props;
+	this.hoverProps = hoverProps;
+	this.activeProps = activeProps;
+	this.click = onClick;
+	this.isActive = isActive;
+	this.fixedImageWidth = fixedImageWidth;
+	this.fixedImageHeight = fixedImageHeight;
+	this.refreshImages();
+};
+
+extendProtoType(Gui.TextComponent, Gui.ActivatableTextComponent);
+
+Gui.ActivatableTextComponent.prototype.refreshImages = function(){
+	this.refreshBaseImage();
+	this.refreshHoverImage();
+	this.refreshActiveImage();
+};
+
+Gui.ActivatableTextComponent.prototype.refreshActiveImage = function(){
+	this.setActiveImage(this.createImage(this.text, this.activeProps));
+};
+
+Gui.ActivatableTextComponent.prototype.setActiveImage = function(image){
+	this.activeImage = image;
+	if(this.state){
+		this.state.getManager().markDirty();
+	}
+};
+
+Gui.ActivatableTextComponent.prototype.setActiveProps = function(props){
+	this.activeProps = props;
+	this.refreshActiveImage();
+};
+
+Gui.ActivatableTextComponent.prototype.render = function(renderer){
+	if(this.isActive()){
+		renderer.renderImage(this.activeImage, 0, 0, 1, 1);
+	}
+	else {
+		if(this.hoverImage && this.state.isMouseOver()){
+			renderer.renderImage(this.hoverImage, 0, 0, 1, 1);
+		}
+		else {
+			renderer.renderImage(this.baseImage, 0, 0, 1, 1);
+		}
+	}
+};
+
+//library source from Gui/component/TextInputComponent.js
+Gui.TextInputComponent = function(startText, maxLength, props, focusProps){
+	this.text = startText;
+	this.maxLength = maxLength;
+	this.props = props;
+	this.hoverProps = focusProps || props;
+	this.refreshImages();
+};
+
+extendProtoType(Gui.TextComponent, Gui.TextInputComponent);
+
+Gui.TextInputComponent.prototype.click = function(x, y, button){
+	this.focus = true;
+	this.state.getManager().markDirty();
+};
+
+Gui.TextInputComponent.prototype.clickOut = function(button){
+	this.focus = false;
+	this.state.getManager().markDirty();
+};
+
+Gui.TextInputComponent.prototype.keyType = function(key){
+	if(this.focus){
+		const newText = this.text + key;
+		if(newText.length <= this.maxLength){
+			this.setText(newText);
+		}
+	}
+};
+
+Gui.TextInputComponent.prototype.createImage = function(text, props){
+	return ImageFactory.createTextImage(text, props, 512, 128);
+};
+
+Gui.TextInputComponent.prototype.keyDown = function(key){
+	if(this.focus && key === 'Backspace' && this.text.length > 0){
+		this.setText(this.text.substring(0, this.text.length - 1));
+	}
+};
+
+Gui.TextInputComponent.prototype.render = function(renderer){
+	if(this.focus){
+		renderer.renderImage(this.hoverImage, 0, 0, 1, 1);
+	}
+	else {
+		renderer.renderImage(this.baseImage, 0, 0, 1, 1);
+	}
+};
+
+//library source from Gui/component/PasswordInputComponent.js
+Gui.PasswordInputComponent = function(maxLength, props, focusProps){
+	this.text = '';
+	this.maxLength = maxLength;
+	this.props = props;
+	this.hoverProps = focusProps || props;
+	this.refreshImages();
+};
+
+extendProtoType(Gui.TextInputComponent, Gui.PasswordInputComponent);
+
+Gui.PasswordInputComponent.prototype.createImage = function(text, props){
+	return ImageFactory.createTextImage(this.getMasked(text), props, 512, 128);
+};
+
+Gui.PasswordInputComponent.prototype.getMasked = function(text){
+	let masked = '';
+	while(masked.length < text.length){
+		masked += '*';
+	}
+	return masked;
+};
+
+//library source from Gui/component/toolbar/Toolbar.js
+Gui.Toolbar = function(upperText, upperProps, upperHoverProps, upperActiveProps, upperComponentHeight, minX, maxX, upperMaxX, addComponents){
+	this.minX = minX;
+	this.maxX = maxX;
+	this.upperMaxX = upperMaxX;
+	this.upperY = 1 - upperComponentHeight;
+	this.upperComponent = new Gui.ActivatableTextComponent(upperText, props, hoverProps, activeProps, function(){
+		this.active = !this.active;
+		this.state.getManager().markDirty();
+	}, function(){
+		return this.active;
+	});
+	this.didInit = false;
+	this.addComponents = addComponents;
+	this.components = [];
+};
+
+Gui.Toolbar.prototype.init = function(){
+	if(!this.didInit){
+		const y = this.upperY;
+		this.addComponent(this.upperComponent, this.upperY);
+
+		// The upper component is special
+		this.components[0].maxX = this.upperMaxX;
+		this.components[0].renderer.setBounds(this.minX, 1 - y, this.upperMaxX, 1);
+		this.components[0].state.setBounds(this.minX, 1 - y, this.upperMaxX, 1);
+		this.upperY = y;
+
+		// Now add the other components
+		this.addComponents();
+		this.didInit = true;
+	}
+};
+
+Gui.Toolbar.prototype.update = function(){
+	if(this.upperComponent.isActive()){
+		const length = this.components.length;
+		for(let index = 0; index < length; index++){
+			if(this.components[index].component.update){
+				this.components[index].component.update();
+			}
+		}
+	}
+};
+
+Gui.Toolbar.prototype.render = function(renderer){
+	this.components[0].render(renderer);
+	if(this.upperComponent.isActive()){
+		const length = this.components.length;
+		for(let index = 1; index < length; index++){
+			this.components[index].render(renderer);
+		}
+	}
+};
+
+Gui.Toolbar.prototype.click = function(x, y, button){
+	this.components[0].click(x, y, button);
+	if(this.upperComponent.isActive()){
+		const length = this.components.length;
+		for(let index = 1; index < length; index++){
+			this.components[index].click(x, y, button);
+		}
+	}
+};
+
+Gui.Toolbar.prototype.clickOut = function(button){
+	const length = this.components.length;
+	for(let index = 0; index < length; index++){
+		if(this.components[index].component.clickOut){
+			this.components[index].component.clickOut(button);
+		}
+	}
+	if(this.upperComponent.active){
+		this.upperComponent.active = false;
+		this.state.getManager().markDirty();
+	}
+};
+
+Gui.Toolbar.prototype.keyType = function(key){
+	if(this.upperComponent.isActive()){
+		const length = this.components.length;
+		for(let index = 0; index < length; index++){
+			if(this.components[index].component.keyType){
+				this.components[index].component.keyType(key);
+			}
+		}
+	}
+};
+
+Gui.Toolbar.prototype.keyDown = function(key){
+	if(this.upperComponent.isActive()){
+		const length = this.components.length;
+		for(let index = 0; index < length; index++){
+			if(this.components[index].component.keyDown){
+				this.components[index].component.keyDown(key);
+			}
+		}
+	}
+};
+
+Gui.Toolbar.prototype.keyUp = function(key){
+	if(this.upperComponent.isActive()){
+		const length = this.components.length;
+		for(let index = 0; index < length; index++){
+			if(this.components[index].component.keyUp){
+				this.components[index].component.keyUp(key);
+			}
+		}
+	}
+};
+
+Gui.Toolbar.prototype.addComponent = function(component, height){
+	this.components.push(new Gui.ToolbarSubComponent(this, component, height));
+};
+
+//library source from Gui/component/toolbar/SubComponent.js
+Gui.ToolbarSubComponent = function(toolbar, component, height){
+	this.minX = toolbar.minX;
+	this.maxX = toolbar.maxX;
+	this.maxY = toolbar.upperY;
+	toolbar.upperY -= height;
+	this.minY = toolbar.upperY;
+	this.component = component;
+	this.renderer = new Gui.StaticChildRenderer(null);
+	this.renderer.setBounds(this.minX, this.minY, this.maxX, this.maxY);
+	component.state = new Gui.StaticChildComponentState(toolbar.state);
+	component.state.setBounds(this.minX, this.minY, this.maxX, this.maxY);
+	if(component.init){
+		component.init();
+	}
+};
+
+Gui.ToolbarSubComponent.prototype.click = function(x, y, button){
+	if(this.component.click || this.component.clickOut){
+		if(x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY){
+			if(this.component.click){
+				this.component.click((x - this.minX) / (this.maxX - this.minX), (y - this.minY) / (this.maxY - this.minY), button);
+			}
+		}
+		else if(this.component.clickOut){
+			this.component.clickOut();
+		}
+	}
+};
+
+Gui.ToolbarSubComponent.prototype.render = function(renderer){
+	if(this.component.render){
+		this.renderer.parent = renderer;
+		this.component.render(this.renderer);
+	}
+};
+
+//library source from Gui/menu/Menu.js
+Gui.Menu = function(backgroundColor, addComponents){
+	this.backgroundColor = backgroundColor;
+	this.addComponents = addComponents;
+	this.didInit = false;
+	this.components = [];
+};
+
+Gui.Menu.prototype.init = function(){
+	if(!this.didInit){
+		this.addComponents();
+		this.didInit = true;
+	}
+};
+
+Gui.Menu.prototype.addComponent = function(component, minX, minY, maxX, maxY){
+	this.components.push(new Gui.MenuSubComponent(this, component, minX, minY, maxX, maxY));
+};
+
+Gui.Menu.prototype.addFullComponent = function(component){
+	this.components.push(new Gui.FullMenuSubComponent(this, component));
+};
+
+Gui.Menu.prototype.update = function(){
+	for(let index in this.components){
+		if(this.components[index].component.update){
+			this.components[index].component.update();
+		}
+	}
+};
+
+Gui.Menu.prototype.render = function(renderer){
+	renderer.clear(this.backgroundColor);
+	for(let index in this.components){
+		this.components[index].render(renderer);
+	}
+};
+
+Gui.Menu.prototype.click = function(x, y, button){
+	for(let index in this.components){
+		this.components[index].click(x, y, button);
+	}
+};
+
+Gui.Menu.prototype.clickOut = function(button){
+	for(let index in this.components){
+		if(this.components[index].component.clickOut){
+			this.components[index].component.clickOut(button);
+		}
+	}
+};
+
+Gui.Menu.prototype.keyType = function(key){
+	for(let index in this.components){
+		if(this.components[index].component.keyType){
+			this.components[index].component.keyType(key);
+		}
+	}
+};
+
+Gui.Menu.prototype.keyDown = function(key){
+	for(let index in this.components){
+		if(this.components[index].component.keyDown){
+			this.components[index].component.keyDown(key);
+		}
+	}
+};
+
+Gui.Menu.prototype.keyUp = function(key){
+	for(let index in this.components){
+		if(this.components[index].component.keyUp){
+			this.components[index].component.keyUp(key);
+		}
+	}
+};
+
+//library source from Gui/menu/SubComponent.js
+Gui.MenuSubComponent = function(menu, component, minX, minY, maxX, maxY){
+	this.menu = menu;
+	this.renderer = new Gui.StaticChildRenderer(null);
+	this.component = component;
+	this.component.state = new Gui.StaticChildComponentState(menu.state);
+	if(this.component.init){
+		this.component.init();
+	}
+	this.setBounds(minX, minY, maxX, maxY);
+};
+
+Gui.MenuSubComponent.prototype.render = function(renderer){
+	if(this.component.render){
+		this.renderer.parent = renderer;
+		this.component.render(this.renderer);
+	}
+};
+
+Gui.MenuSubComponent.prototype.click = function(x, y, button){
+	if(this.component.click || this.component.clickOut){
+		if(this.inBounds(x, y)){
+			if(this.component.click){
+				this.component.click((x - this.minX) / (this.maxX - this.minX), (y - this.minY) / (this.maxY - this.minY), button);
+			}
+		}
+		else if(this.component.clickOut){
+			this.component.clickOut(button);
+		}
+	}
+};
+
+Gui.MenuSubComponent.prototype.inBounds = function(x, y){
+	return x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY;
+};
+
+Gui.MenuSubComponent.prototype.setBounds = function(minX, minY, maxX, maxY){
+	this.minX = minX;
+	this.minY = minY;
+	this.maxX = maxX;
+	this.maxY = maxY;
+	this.component.state.setBounds(minX, minY, maxX, maxY);
+	this.renderer.setBounds(minX, minY, maxX, maxY);
+};
+
+//library source from Gui/menu/FullSubComponent.js
+Gui.FullMenuSubComponent = function(menu, component){
+	this.menu = menu;
+	this.renderer = new Gui.StaticChildRenderer(undefined);
+	this.component = component;
+	this.component.state = menu.state;
+	if(this.component.init){
+		this.component.init();
+	}
+};
+
+Gui.FullMenuSubComponent.prototype.render = function(renderer){
+	if(this.component.render){
+		this.component.render(renderer);
+	}
+};
+
+Gui.FullMenuSubComponent.prototype.click = function(x, y, button){
+	if(this.component.click){
+		this.component.click(x, y, button);
+	}
+};
+
+Gui.FullMenuSubComponent.prototype.inBounds = function(x, y){
+	return true;
+};
+
+//library source from Gui/menu/PopupMenu.js
+Gui.PopupMenu = function(background, foreground, minX, minY, maxX, maxY){
+	this.background = background;
+	this.foreground = foreground;
+	this.minX = minX;
+	this.minY = minY;
+	this.maxX = maxX;
+	this.maxY = maxY;
+	this.renderer = new Gui.StaticChildRenderer(null);
+	this.renderer.setBounds(minX, minY, maxX, maxY);
+};
+
+Gui.PopupMenu.prototype.init = function(){
+	this.background.init();
+	this.foreground.init();
+};
+
+Gui.PopupMenu.prototype.update = function(){
+	this.foreground.update();
+};
+
+Gui.PopupMenu.prototype.render = function(renderer){
+	this.background.render(renderer);
+	renderer.fillRect('rgba(0, 0, 0, 100)', 0, 0, 1, 1);
+	this.renderer.parent = renderer;
+	this.foreground.render(this.renderer);
+};
+
+Gui.PopupMenu.prototype.click = function(x, y, button){
+	if(x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY){
+		this.foreground.click((x - this.minX) / (this.maxX - this.minX), (y - this.minY) / (this.maxY - this.minY), button);
+	} else {
+		this.foreground.clickOut(button);
+	}
+};
+
+Gui.PopupMenu.prototype.clickOut = function(button){
+	this.foreground.clickOut(button);
+};
+
+Gui.PopupMenu.prototype.keyType = function(key){
+	this.foreground.keyType(key);
+};
+
+Gui.PopupMenu.prototype.keyDown = function(key){
+	this.foreground.keyDown(key);
+};
+
+Gui.PopupMenu.prototype.keyUp = function(key){
+	this.foreground.keyUp(key);
+};
+
+//source from file libraries/Gui3D.js
+
+//library source from Gui3D/Gui3D.js
+const Gui3D = {};
+
+let totalTime1 = 0;
+let totalTime2 = 0;
+let totalTicks = 0;
+
+function renderModels(pixels, width, height, cameraMatrix, models){
+	if(pixels === undefined){
+		pixels = new Uint8ClampedArray(4 * width * height);
+	}
+	const modelsLength = models.length;
+	let triangleLength = 0;
+	for(let index = 0; index < modelsLength; index++){
+		triangleLength += models[index].model.indices.length / 3;
+	}
+	const triangles = new Array(triangleLength);
+	const rectangles = new Array(triangleLength);
+	let triangleIndex = 0;
+	
+	//less garbage
+	let model;
+	let texture;
+	let skeleton;
+	let indices;
+	let positions;
+	let textureCoords;
+	let indicesLength;
+	let vector4 = new Vectors.Vector4();
+	let vector31 = new Vectors.Vector3();
+	let vector32 = new Vectors.Vector3();
+	let vector33 = new Vectors.Vector3();
+	let indexPos = 0;
+	let index = 0;
+	let modelIndex = 0;
+	let rectangle;
+	//
+	let startTime = performance.now();
+	for(modelIndex = 0; modelIndex < modelsLength; modelIndex++){
+		model = models[modelIndex].model;
+		texture = models[modelIndex].texture;
+		skeleton = models[modelIndex].skeleton;
+		indices = model.indices;
+		positions = model.positions;
+		textureCoords = model.textureCoords;
+		const matrices = model.matrices;
+		indicesLength = indices.length;
+		for(index = 0; index < indicesLength; index += 3){
+
+			//vector 1
+			indexPos = indices[index] * 3;
+			vector31.x = positions[indexPos++];
+			vector31.y = positions[indexPos++];
+			vector31.z = positions[indexPos];
+			skeleton.parts[matrices[indices[index]]].matrix.transform(vector31, vector4);
+			cameraMatrix.transform(vector4, vector4);
+			if(vector4.w < 0) vector4.w = -vector4.w;
+			vector31.x = vector4.x / vector4.w;
+			vector31.y = vector4.y / vector4.w;
+			vector31.z = vector4.z / vector4.w;
+
+			//vector 2
+			indexPos = indices[index + 1] * 3;
+			vector32.x = positions[indexPos++];
+			vector32.y = positions[indexPos++];
+			vector32.z = positions[indexPos];
+			skeleton.parts[matrices[indices[index + 1]]].matrix.transform(vector32, vector4);
+			cameraMatrix.transform(vector4, vector4);
+			if(vector4.w < 0) vector4.w = -vector4.w;
+			vector32.x = vector4.x / vector4.w;
+			vector32.y = vector4.y / vector4.w;
+			vector32.z = vector4.z / vector4.w;
+
+			//vector 3
+			indexPos = indices[index + 2] * 3;
+			vector33.x = positions[indexPos++];
+			vector33.y = positions[indexPos++];
+			vector33.z = positions[indexPos];
+			skeleton.parts[matrices[indices[index + 2]]].matrix.transform(vector33, vector4);
+			cameraMatrix.transform(vector4, vector4);
+			if(vector4.w < 0) vector4.w = -vector4.w;
+			vector33.x = vector4.x / vector4.w;
+			vector33.y = vector4.y / vector4.w;
+			vector33.z = vector4.z / vector4.w;
+
+			//add triangle to list
+			rectangle = new Gui3D.Rectangle(vector31, vector32, vector33);
+			if(rectangle.isInScreen()){
+				triangles[triangleIndex] = new Gui3D.Triangle(texture, skeleton, vector31, vector32, vector33, 
+					textureCoords[indices[index] * 2], textureCoords[indices[index] * 2 + 1],
+					textureCoords[indices[index + 1] * 2], textureCoords[indices[index + 1] * 2 + 1],
+					textureCoords[indices[index + 2] * 2], textureCoords[indices[index + 2] * 2 + 1]
+				);
+				rectangles[triangleIndex++] = rectangle;
+			}
+		}
+	}
+	triangleLength = triangleIndex;
+	totalTime1 += performance.now() - startTime;
+	startTime = performance.now();
+
+	//less garbage
+	let fx = 0.0;
+	let fy = 0.0;
+	let dist1 = 0.0;
+	let dist2 = 0.0;
+	let dist3 = 0.0;
+	let totalDist = 0.0;
+	let textureIndex = 0;
+	let triangleTextureData = null;
+	let textureX = 0.0;
+	let textureY = 0.0;
+
+	let barCoords = null;
+	let triangle = null;
+	let fz = 0.0;
+	let minZ = 0.0;
+	let closestBarCoords = null;
+	let x = 0;
+	let y = 0;
+	//
+	let pixelIndex = 0;
+	for(y = 0; y < height; y++){
+		for(x = 0; x < width; x++){
+			fx = (x / width) * 2 - 1;
+			fy = (y / height) * -2 + 1;
+			minZ = 1;
+			closestBarCoords = undefined;
+			triangle = undefined;
+			for(index = 0; index < triangleLength; index++){
+				if(rectangles[index].isPointInside(fx, fy)){
+					fz = triangles[index].getZ(fx, fy);
+					if(fz > -1 && fz < minZ){
+						barCoords = triangles[index].getBarCoords(fx, fy);
+						if(barCoords !== null){
+							minZ = fz;
+							triangle = triangles[index];
+							closestBarCoords = barCoords;
+						}
+					}
+				}
+			}
+			if(triangle !== undefined){
+				textureX = closestBarCoords[0] * triangle.u1;
+				textureY = closestBarCoords[0] * triangle.v1;
+						
+				//vertex 2
+				textureX += closestBarCoords[1] * triangle.u2;
+				textureY += closestBarCoords[1] * triangle.v2;
+						
+				//vertex 3
+				textureX += closestBarCoords[2] * triangle.u3;
+				textureY += closestBarCoords[2] * triangle.v3;
+						
+				textureIndex = 4 * (Math.round(textureX) + triangle.texture.width * Math.round(textureY));
+				triangleTextureData = triangle.texture.data;
+				pixels[pixelIndex] = triangleTextureData[textureIndex++];//red
+				pixels[pixelIndex + 1] = triangleTextureData[textureIndex++];//green
+				pixels[pixelIndex + 2] = triangleTextureData[textureIndex++];//blue
+				pixels[pixelIndex + 3] = triangleTextureData[textureIndex];//alpha
+			}
+			pixelIndex += 4;
+		}
+	}
+	totalTime2 += performance.now() - startTime;
+	totalTicks++;
+	return pixels;
+};
+
+Gui.CanvasRenderer.prototype.renderModels = function(minX, minY, maxX, maxY, cameraMatrix, models){
+	const intMinX = Math.round(minX * this.width);
+	const intMinY = Math.round((1 - maxY) * this.height);
+	const width = Math.round(maxX * this.width) - intMinX + 1;
+	const height = Math.round((1 - minY) * this.height) - intMinY + 1;
+	const imageData = this.context.getImageData(intMinX, intMinY, width, height);
+	renderModels(imageData.data, width, height, cameraMatrix, models);
+	this.context.putImageData(imageData, intMinX, intMinY);
+};
+
+Gui.DynamicChildRenderer.prototype.renderModels = function(minX, minY, maxX, maxY, cameraMatrix, models){
+	this.parent().renderModels(this.minX() + this.width() * minX, this.minY() + this.height() * minY, this.minX() + this.width() * maxX, this.minY() + this.height() * maxY, cameraMatrix, models);
+};
+
+Gui.StaticChildRenderer.prototype.renderModels = function(minX, minY, maxX, maxY, cameraMatrix, models){
+	this.parent.renderModels(this.minX + this.width * minX, this.minY + this.height * minY, this.minX + this.width * maxX, this.minY + this.height * maxY, cameraMatrix, models);
+};
+
+//library source from Gui3D/Camera.js
+Gui3D.Camera = function(fov, nearPlane, farPlane, screenWidth, screenHeight, x, y, z, pitch, yaw, roll){
+	this.fov = fov;
+	this.nearPlane = nearPlane;
+	this.farPlane = farPlane;
+	this.width = screenWidth;
+	this.height = screenHeight;
+	this.x = x;
+	this.y = y;
+	this.z = z;
+	this.pitch = pitch;
+	this.yaw = yaw;
+	this.roll = roll;
+	this.shouldUpdateMatrix = true;
+	this.matrix = null;
+	this.lookVector = null;
+	this.shouldUpdateLookVector = true;
+};
+
+Gui3D.Camera.prototype.setFOV = function(fov){
+	if (fov !== this.fov) {
+		this.fov = fov;
+		this.shouldUpdateMatrix = true;
+	}
+};
+
+Gui3D.Camera.prototype.getFOV = function(){
+	return this.fov;
+};
+
+Gui3D.Camera.prototype.setNearPlane = function(nearPlane){
+	if (nearPlane !== this.nearPlane) {
+		this.nearPlane = nearPlane;
+		this.shouldUpdateMatrix = true;
+	}
+};
+
+Gui3D.Camera.prototype.getNearPlane = function(){
+	return this.nearPlane;
+};
+
+Gui3D.Camera.prototype.setFarPlane = function(farPlane){
+	if (farPlane !== this.farPlane) {
+		this.farPlane = farPlane;
+		this.shouldUpdateMatrix = true;
+	}
+};
+
+Gui3D.Camera.prototype.getFarPlane = function(){
+	return this.farPlane;
+};
+
+Gui3D.Camera.prototype.setScreenWidth = function(width){
+	if (width !== this.width){
+		this.width = width;
+		this.shouldUpdateMatrix = true;
+	}
+};
+
+Gui3D.Camera.prototype.getScreenWidth = function(){
+	return this.width;
+};
+
+Gui3D.Camera.prototype.setScreenHeight = function(height){
+	if (height !== this.height){
+		this.height = height;
+		this.shouldUpdateMatrix = true;
+	}
+};
+
+Gui3D.Camera.prototype.getScreenHeight = function(){
+	return this.height;
+};
+
+Gui3D.Camera.prototype.setX = function(x){
+	if (x !== this.x) {
+		this.x = x;
+		this.shouldUpdateMatrix = true;
+	}
+};
+
+Gui3D.Camera.prototype.increaseX = function(dx){
+	if (dx) {
+		this.x += dx;
+		this.shouldUpdateMatrix = true;
+	}
+};
+
+Gui3D.Camera.prototype.getX = function(){
+	return this.x;
+};
+
+Gui3D.Camera.prototype.setY = function(y){
+	if (y !== this.y) {
+		this.y = y;
+		this.shouldUpdateMatrix = true;
+	}
+};
+
+Gui3D.Camera.prototype.increaseY = function(dy){
+	if (dy) {
+		this.y += dy;
+		this.shouldUpdateMatrix = true;
+	}
+};
+
+Gui3D.Camera.prototype.getY = function(){
+	return this.y;
+};
+
+Gui3D.Camera.prototype.setZ = function(z){
+	if (z !== this.z) {
+		this.z = z;
+		this.shouldUpdateMatrix = true;
+	}
+};
+
+Gui3D.Camera.prototype.increaseZ = function(dz){
+	if (dz) {
+		this.z += dz;
+		this.shouldUpdateMatrix = true;
+	}
+};
+
+Gui3D.Camera.prototype.getZ = function(){
+	return this.z;
+};
+
+Gui3D.Camera.prototype.setPitch = function(pitch){
+	if (pitch !== this.pitch) {
+		this.pitch = pitch;
+		this.shouldUpdateMatrix = true;
+		this.shouldUpdateLookVector = true;
+	}
+};
+
+Gui3D.Camera.prototype.increasePitch = function(amount){
+	if (amount) {
+		this.pitch += amount;
+		this.shouldUpdateMatrix = true;
+		this.shouldUpdateLookVector = true;
+	}
+};
+
+Gui3D.Camera.prototype.getPitch = function(){
+	return this.pitch;
+};
+
+Gui3D.Camera.prototype.setYaw = function(yaw){
+	if (yaw !== this.yaw) {
+		this.yaw = yaw;
+		this.shouldUpdateMatrix = true;
+		this.shouldUpdateLookVector = true;
+	}
+};
+
+Gui3D.Camera.prototype.increaseYaw = function(amount){
+	if (amount) {
+		this.yaw += amount;
+		this.shouldUpdateMatrix = true;
+		this.shouldUpdateLookVector = true;
+	}
+};
+
+Gui3D.Camera.prototype.getYaw = function(){
+	return this.yaw;
+};
+
+Gui3D.Camera.prototype.setRoll = function(roll){
+	if (roll !== this.roll) {
+		this.roll = roll;
+		this.shouldUpdateMatrix = true;
+		this.shouldUpdateLookVector = true;
+	}
+};
+
+Gui3D.Camera.prototype.increaseRoll = function(amount){
+	if (amount) {
+		this.roll += amount;
+		this.shouldUpdateMatrix = true;
+		this.shouldUpdateLookVector = true;
+	}
+};
+
+Gui3D.Camera.prototype.getRoll = function(){
+	return this.roll;
+};
+
+Gui3D.Camera.prototype.getMatrix = function(){
+	if (this.shouldUpdateMatrix) {
+		this.matrix = this.createMatrix();
+		this.shouldUpdateMatrix = false;
+	}
+	return this.matrix;
+};
+
+Gui3D.Camera.prototype.createMatrix = function(){
+	return Matrices.createCameraMatrix(this.fov, this.nearPlane, this.farPlane, this.width, this.height, this.x, this.y, this.z, this.pitch, this.yaw, this.roll);
+};
+
+Gui3D.Camera.prototype.getLookVector = function(){
+	if (this.shouldUpdateLookVector) {
+		this.lookVector = this.createLookVector();
+		this.shouldUpdateLookVector = false;
+	}
+	return this.lookVector;
+};
+
+Gui3D.Camera.prototype.createLookVector = function(){
+	// TODO implement roll
+	return new Vectors.Vector3(Math.sin(toRadians(this.yaw)) * Math.cos(toRadians(this.pitch)), Math.sin(toRadians(this.pitch)), -Math.cos(toRadians(this.yaw)) * Math.cos(toRadians(this.pitch)));
+};
+
+//library source from Gui3D/math/Triangle.js
+Gui3D.Triangle = function(texture, skeleton, vector1, vector2, vector3, u1, v1, u2, v2, u3, v3, m1, m2, m3){
+	this.texture = texture;
+	this.skeleton = skeleton;
+	this.x1 = vector1.x;
+	this.y1 = vector1.y;
+	this.z1 = vector1.z;
+	this.u1 = u1;
+	this.v1 = v1;
+	//this.m1 = m1;
+	this.x2 = vector2.x;
+	this.y2 = vector2.y;
+	this.z2 = vector2.z;
+	this.u2 = u2;
+	this.v2 = v2;
+	//this.m2 = m2;
+	this.x3 = vector3.x;
+	this.y3 = vector3.y;
+	this.z3 = vector3.z;
+	this.u3 = u3;
+	this.v3 = v3;
+	//this.m3 = m3;
+
+	this.dx32 = this.x3 - this.x2;
+	this.dy23 = this.y2 - this.y3;
+	this.dx13 = this.x1 - this.x3;
+	this.dy31 = this.y3 - this.y1;
+
+	this.determinant = this.dy23 * this.dx13 + this.dx32 * (this.y1 - this.y3);
+
+	const normal = vector2.substract(vector1, null).cross(vector3.substract(vector1, null), null);
+	this.nx = normal.x;
+	this.ny = normal.y;
+	this.nz = normal.z;
+	this.w = this.nx * vector1.x + this.ny * vector1.y + this.nz * vector1.z;
+};
+
+Gui3D.Triangle.prototype.getZ = function(x, y){
+	/*
+	plane: 
+	nx * x + ny * y + nz * z = w
+	nz * z = w - nx * x - ny * y
+	z = (w - nx * x - ny * y) / nz and nz != 0
+	*/
+	if(this.nz !== 0){
+		return (this.w - this.nx * x - this.ny * y) / this.nz;
+	}
+	return 2;//will prevent rendering for now
+}
+
+Gui3D.Triangle.prototype.getBarCoords = function(fx, fy){
+	const factor1 = (this.dy23 * (fx - this.x3) + this.dx32 * (fy - this.y3)) / this.determinant;
+	if(factor1 < 0 || factor1 > 1) return null;
+	const factor2 = (this.dy31 * (fx - this.x3) + this.dx13 * (fy - this.y3)) / this.determinant;
+	if(factor2 < 0 || factor2 > 1) return null;
+	const factor3 = 1 - factor1 - factor2;
+	if(factor3 < 0 || factor3 > 1) return null;
+	return [factor1, factor2, factor3];
+};
+
+//library source from Gui3D/math/Rectangle.js
+Gui3D.Rectangle = function(vec1, vec2, vec3){
+	this.minX = vec1.x;
+	if(vec2.x < this.minX) this.minX = vec2.x;
+	if(vec3.x < this.minX) this.minX = vec3.x;
+
+	this.minY = vec1.y;
+	if(vec2.y < this.minY) this.minY = vec2.y;
+	if(vec3.y < this.minY) this.minY = vec3.y;
+
+	this.maxX = vec1.x;
+	if(vec2.x > this.maxX) this.maxX = vec2.x;
+	if(vec3.x > this.maxX) this.maxX = vec3.x;
+
+	this.maxY = vec1.y;
+	if(vec2.y > this.maxY) this.maxY = vec2.y;
+	if(vec3.y > this.maxY) this.maxY = vec3.y;
+}
+
+Gui3D.Rectangle.prototype.isPointInside = function(x, y){
+	return x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY;
+};
+
+Gui3D.Rectangle.prototype.isInScreen = function(){
+	return this.minX <= 1 && this.maxX >= -1 && this.minY <= 1 && this.maxY >= -1;
+};
+
+//library source from Gui3D/model/Model.js
+Gui3D.Model = function(model, texture, skeleton){
+	this.model = model;
+	this.texture = texture;
+	this.skeleton = skeleton;
+};
+
+//library source from Gui3D/model/RawModel.js
+Gui3D.RawModel = function(positions, textureCoords, matrices, indices){
+	this.positions = positions;
+	this.textureCoords = textureCoords;
+	this.matrices = matrices;
+	this.indices = indices;
+};
+
+//library source from Gui3D/model/Skeleton.js
+Gui3D.Skeleton = function(parts){
+	this.parts = parts;
+};
+
+Gui3D.Skeleton.prototype.setState = function(state){
+	const length = this.parts.length;
+	for(let index = 0; index < length; index++){
+		this.parts[index].setState(state, this);
+	}
+};
+
+//library source from Gui3D/model/SkeletonPart.js
+Gui3D.SkeletonPart = function(parentIndex, x, y, z, pitch, yaw, roll, animation){
+	this.parentIndex = parentIndex;
+	this.x = x;
+	this.y = y;
+	this.z = z;
+	this.pitch = pitch;
+	this.yaw = yaw;
+	this.roll = roll;
+	this.animation = animation;
+	this.matrix = null;
+};
+
+Gui3D.SkeletonPart.prototype.clone = function(){
+	return new Gui3D.SkeletonPart(this.parentIndex, this.x, this.y, this.z, this.pitch, this.yaw, this.roll, this.animation.clone());
+};
+
+Gui3D.SkeletonPart.prototype.setState = function(state, skeleton){
+	this.matrix = Matrices.createTransformationMatrix(this.x + this.animation.getX(state), this.y + this.animation.getY(state), this.z + this.animation.getZ(state), this.pitch + this.animation.getPitch(state), this.yaw + this.animation.getYaw(state), this.roll + this.animation.getRoll(state));
+	if(this.parentIndex !== -1){
+		skeleton.parts[this.parentIndex].matrix.multiply(this.matrix, this.matrix);
+	}
+};
+
+//library source from Gui3D/model/Animations.js
+Gui3D.NoAnimation = function(){};
+
+Gui3D.NoAnimation.prototype.getX = function(state){
+	return 0;
+};
+
+Gui3D.NoAnimation.prototype.getY = function(state){
+	return 0;
+};
+
+Gui3D.NoAnimation.prototype.getZ = function(state){
+	return 0;
+};
+
+Gui3D.NoAnimation.prototype.getPitch = function(state){
+	return 0;
+};
+
+Gui3D.NoAnimation.prototype.getYaw = function(state){
+	return 0;
+};
+
+Gui3D.NoAnimation.prototype.getRoll = function(state){
+	return 0;
+};
+
+Gui3D.NoAnimation.prototype.clone = function(){
+	return new Gui3D.NoAnimation();
+};
+
+//library source from Gui3D/model/ModelBuilder.js
+Gui3D.ModelBuilder = function(current){
+	if(current === undefined){
+		this.positions = [];
+		this.textureCoords = [];
+		this.matrices = [];
+		this.indices = [];
+		this.parts = [];
+		this.texture = new Gui.Texture(32, 32);
+	}
+	else {
+		//create new arrays because RawModel uses typed arrays that can't be resized
+		this.positions = new Array(current.model.positions.length);
+		this.textureCoords = new Array(current.model.textureCoords.length);
+		this.matrices = new Array(current.model.matrices.length);
+		this.indices = new Array(current.model.indices.length);
+		this.parts = new Array(current.skeleton.parts.length);
+		javaArrayCopy(current.model.positions, 0, this.positions, 0, this.positions.length);
+		javaArrayCopy(current.model.textureCoords, 0, this.textureCoords, 0, this.textureCoords.length);
+		javaArrayCopy(current.model.matrices, 0, this.matrices, 0, this.matrices.length);
+		javaArrayCopy(current.model.indices, 0, this.indices, 0, this.indices.length);
+		javaArrayCopy(current.skeleton.parts, 0, this.parts, 0, this.parts.length);
+		this.texture = current.texture.clone();
+	}
+	this.testModel = new Gui3D.Model(new Gui3D.RawModel(this.positions, this.textureCoords, this.matrices, this.indices), this.texture, new Gui3D.Skeleton(this.parts));
+};
+
+Gui3D.ModelBuilder.prototype.addVertex = function(x, y, z, u, v, m){
+	this.positions.push(x);
+	this.positions.push(y);
+	this.positions.push(z);
+	this.textureCoords.push(u);
+	this.textureCoords.push(v);
+	this.matrices.push(m);
+	return this.matrices.length - 1;
+};
+
+Gui3D.ModelBuilder.prototype.bindTriangle = function(vertex1, vertex2, vertex3){
+	this.indices.push(vertex1);
+	this.indices.push(vertex2);
+	this.indices.push(vertex3);
+};
+
+Gui3D.ModelBuilder.prototype.bindFourangle = function(vertex1, vertex2, vertex3, vertex4){
+	this.bindTriangle(vertex1, vertex2, vertex3);
+	this.bindTriangle(vertex3, vertex4, vertex1);
+};
+
+Gui3D.ModelBuilder.prototype.addSkeletonPart = function(part){
+	this.parts.push(part);
+};
+
+Gui3D.ModelBuilder.prototype.addTriangle = function(x1, y1, z1, u1, v1, m1, x2, y2, z2, u2, v2, m2, x3, y3, z3, u3, v3, m3){
+	this.bindTriangle(this.addVertex(x1, y1, z1, u1, v1, m1), this.addVertex(x2, y2, z2, u2, v2, m2), this.addVertex(x3, y3, z3, u3, v3, m3));
+};
+
+Gui3D.ModelBuilder.prototype.addFourangle = function(x1, y1, z1, u1, v1, m1, x2, y2, z2, u2, v2, m2, x3, y3, z3, u3, v3, m3, x4, y4, z4, u4, v4, m4){
+	this.bindFourangle(this.addVertex(x1, y1, z1, u1, v1, m1), this.addVertex(x2, y2, z2, u2, v2, m2), this.addVertex(x3, y3, z3, u3, v3, m3), this.addVertex(x4, y4, z4, u4, v4, m4));
+};
+
+Gui3D.ModelBuilder.prototype.createModel = function(){
+	const positions = new Int32Array(this.positions.length);
+	const textureCoords = new Uint16Array(this.textureCoords.length);
+	const matrices = new Int8Array(this.matrices.length);
+	const indices = new Int32Array(this.indices.length);
+	const parts = new Array(this.parts);
+	javaArrayCopy(this.positions, 0, positions, 0, positions.length);
+	javaArrayCopy(this.textureCoords, 0, textureCoords, 0, textureCoords.length);
+	javaArrayCopy(this.matrices, 0, matrices, 0, matrices.length);
+	javaArrayCopy(this.indices, 0, indices, 0, indices.length);
+	const partsLength = parts.length;
+	for(let index = 0; index < parts.length; index++){
+		parts[index] = this.parts[index].clone();
+	}
+	return new Gui3D.Model(new Gui3D.RawModel(positions, textureCoords, matrices, indices), this.texture.clone(), new Gui3D.Skeleton(parts));
+};
+
+//source from file libraries/MathHelper.js
+
+//library source from MathHelper/matrices/Matrices.js
+const Matrices = {
+	determinant3x3 : function(t00, t01, t02, t10, t11, t12, t20, t21, t22){
+		return t00 * (t11 * t22 - t12 * t21) + t01 * (t12 * t20 - t10 * t22) + t02 * (t10 * t21 - t11 * t20);
+	},
+	createProjectionMatrix : function(fov, nearPlane, farPlane, width, height){
+		const aspectRatio = width / height;
+		const yScale = aspectRatio * (1 / Math.tan(toRadians(fov / 2)));
+		const xScale = yScale / aspectRatio;
+		const frustumLength = farPlane - nearPlane;
+		const matrix = new Matrices.Matrix4();
+		matrix.m00 = xScale;
+		matrix.m11 = yScale;
+		matrix.m22 = -((farPlane + nearPlane) / frustumLength);
+		matrix.m23 = -1;
+		matrix.m32 = -((2 * farPlane * nearPlane) / frustumLength);
+		return matrix;
+	},
+	createViewMatrix : function(x, y, z, pitch, yaw, roll){
+		const matrix = new Matrices.Matrix4();
+		matrix.setIdentity();
+		if(pitch){
+			matrix.rotate(pitch, Vectors.AXIS_X);
+		}
+		if(yaw){
+			matrix.rotate(yaw, Vectors.AXIS_Y);
+		}
+		if(roll){
+			matrix.rotate(roll, Vectors.AXIS_Z);
+		}
+		matrix.translate(new Vectors.Vector3(-x, -y, -z));
+		return matrix;
+	},
+	createCameraMatrix : function(fov, nearPlane, farPlane, width, height, x, y, z, pitch, yaw, roll){
+		return Matrices.createProjectionMatrix(fov, nearPlane, farPlane, width, height).multiply(Matrices.createViewMatrix(x, y, z, pitch, yaw, roll));
+	},
+	createTransformationMatrix : function(x, y, z, pitch, yaw, roll){
+		const matrix = new Matrices.Matrix4();
+		matrix.setIdentity();
+		matrix.translate(new Vectors.Vector3(x, y, z));
+		if(pitch) matrix.rotate(pitch, Vectors.AXIS_X);
+		if(yaw) matrix.rotate(yaw, Vectors.AXIS_Y);
+		if(roll) matrix.rotate(roll, Vectors.AXIS_Z);
+		return matrix;
+	}
+};
+
+//library source from MathHelper/matrices/Matrix4.js
+Matrices.Matrix4 = function(){
+	this.setZero();
+};
+
+Matrices.Matrix4.prototype.setIdentity = function(){
+	this.m00 = 1;
+	this.m01 = 0;
+	this.m02 = 0;
+	this.m03 = 0;
+	this.m10 = 0;
+	this.m11 = 1;
+	this.m12 = 0;
+	this.m13 = 0;
+	this.m20 = 0;
+	this.m21 = 0;
+	this.m22 = 1;
+	this.m23 = 0;
+	this.m30 = 0;
+	this.m31 = 0;
+	this.m32 = 0;
+	this.m33 = 1;
+	return this;
+};
+
+Matrices.Matrix4.prototype.setZero = function(){
+	this.m00 = 0;
+	this.m01 = 0;
+	this.m02 = 0;
+	this.m03 = 0;
+	this.m10 = 0;
+	this.m11 = 0;
+	this.m12 = 0;
+	this.m13 = 0;
+	this.m20 = 0;
+	this.m21 = 0;
+	this.m22 = 0;
+	this.m23 = 0;
+	this.m30 = 0;
+	this.m31 = 0;
+	this.m32 = 0;
+	this.m33 = 0;
+	return this;
+};
+
+Matrices.Matrix4.prototype.clone = function(dest){
+	if(dest === undefined){
+		dest = new Matrices.Matrix4();
+	}
+	dest.m00 = this.m00;
+	dest.m01 = this.m01;
+	dest.m02 = this.m02;
+	dest.m03 = this.m03;
+	dest.m10 = this.m10;
+	dest.m11 = this.m11;
+	dest.m12 = this.m12;
+	dest.m13 = this.m13;
+	dest.m20 = this.m20;
+	dest.m21 = this.m21;
+	dest.m22 = this.m22;
+	dest.m23 = this.m23;
+	dest.m30 = this.m30;
+	dest.m31 = this.m31;
+	dest.m32 = this.m32;
+	dest.m33 = this.m33;
+	return dest;
+};
+
+Matrices.Matrix4.prototype.add = function(other, dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	dest.m00 = this.m00 + other.m00;
+	dest.m01 = this.m01 + other.m01;
+	dest.m02 = this.m02 + other.m02;
+	dest.m03 = this.m03 + other.m03;
+	dest.m10 = this.m10 + other.m10;
+	dest.m11 = this.m11 + other.m11;
+	dest.m12 = this.m12 + other.m12;
+	dest.m13 = this.m13 + other.m13;
+	dest.m20 = this.m20 + other.m20;
+	dest.m21 = this.m21 + other.m21;
+	dest.m22 = this.m22 + other.m22;
+	dest.m23 = this.m23 + other.m23;
+	dest.m30 = this.m30 + other.m30;
+	dest.m31 = this.m31 + other.m31;
+	dest.m32 = this.m32 + other.m32;
+	dest.m33 = this.m33 + other.m33;
+	return dest;
+};
+
+Matrices.Matrix4.prototype.substract = function(other, dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	if(dest === null){
+		dest = new Matrices.Matrix4();
+	}
+	dest.m00 = this.m00 - other.m00;
+	dest.m01 = this.m01 - other.m01;
+	dest.m02 = this.m02 - other.m02;
+	dest.m03 = this.m03 - other.m03;
+	dest.m10 = this.m10 - other.m10;
+	dest.m11 = this.m11 - other.m11;
+	dest.m12 = this.m12 - other.m12;
+	dest.m13 = this.m13 - other.m13;
+	dest.m20 = this.m20 - other.m20;
+	dest.m21 = this.m21 - other.m21;
+	dest.m22 = this.m22 - other.m22;
+	dest.m23 = this.m23 - other.m23;
+	dest.m30 = this.m30 - other.m30;
+	dest.m31 = this.m31 - other.m31;
+	dest.m32 = this.m32 - other.m32;
+	dest.m33 = this.m33 - other.m33;
+	return dest;
+};
+
+Matrices.Matrix4.prototype.multiply = function(other, dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	const m00 = this.m00 * other.m00 + this.m10 * other.m01 + this.m20 * other.m02 + this.m30 * other.m03;
+	const m01 = this.m01 * other.m00 + this.m11 * other.m01 + this.m21 * other.m02 + this.m31 * other.m03;
+	const m02 = this.m02 * other.m00 + this.m12 * other.m01 + this.m22 * other.m02 + this.m32 * other.m03;
+	const m03 = this.m03 * other.m00 + this.m13 * other.m01 + this.m23 * other.m02 + this.m33 * other.m03;
+	const m10 = this.m00 * other.m10 + this.m10 * other.m11 + this.m20 * other.m12 + this.m30 * other.m13;
+	const m11 = this.m01 * other.m10 + this.m11 * other.m11 + this.m21 * other.m12 + this.m31 * other.m13;
+	const m12 = this.m02 * other.m10 + this.m12 * other.m11 + this.m22 * other.m12 + this.m32 * other.m13;
+	const m13 = this.m03 * other.m10 + this.m13 * other.m11 + this.m23 * other.m12 + this.m33 * other.m13;
+	const m20 = this.m00 * other.m20 + this.m10 * other.m21 + this.m20 * other.m22 + this.m30 * other.m23;
+	const m21 = this.m01 * other.m20 + this.m11 * other.m21 + this.m21 * other.m22 + this.m31 * other.m23;
+	const m22 = this.m02 * other.m20 + this.m12 * other.m21 + this.m22 * other.m22 + this.m32 * other.m23;
+	const m23 = this.m03 * other.m20 + this.m13 * other.m21 + this.m23 * other.m22 + this.m33 * other.m23;
+	const m30 = this.m00 * other.m30 + this.m10 * other.m31 + this.m20 * other.m32 + this.m30 * other.m33;
+	const m31 = this.m01 * other.m30 + this.m11 * other.m31 + this.m21 * other.m32 + this.m31 * other.m33;
+	const m32 = this.m02 * other.m30 + this.m12 * other.m31 + this.m22 * other.m32 + this.m32 * other.m33;
+	const m33 = this.m03 * other.m30 + this.m13 * other.m31 + this.m23 * other.m32 + this.m33 * other.m33;
+	dest.m00 = m00;
+	dest.m01 = m01;
+	dest.m02 = m02;
+	dest.m03 = m03;
+	dest.m10 = m10;
+	dest.m11 = m11;
+	dest.m12 = m12;
+	dest.m13 = m13;
+	dest.m20 = m20;
+	dest.m21 = m21;
+	dest.m22 = m22;
+	dest.m23 = m23;
+	dest.m30 = m30;
+	dest.m31 = m31;
+	dest.m32 = m32;
+	dest.m33 = m33;
+	return dest;
+};
+
+Matrices.Matrix4.prototype.transform = function(other, dest){
+	if(dest === undefined){
+		dest = new Vectors.Vector4();
+	}
+	let x;
+	let y;
+	let z;
+	let w;
+	if(other instanceof Vectors.Vector3){
+		x = this.m00 * other.x + this.m10 * other.y + this.m20 * other.z + this.m30;
+		y = this.m01 * other.x + this.m11 * other.y + this.m21 * other.z + this.m31;
+		z = this.m02 * other.x + this.m12 * other.y + this.m22 * other.z + this.m32;
+		w = this.m03 * other.x + this.m13 * other.y + this.m23 * other.z + this.m33;
+	}
+	else {//Vector4
+		x = this.m00 * other.x + this.m10 * other.y + this.m20 * other.z + this.m30 * other.w;
+		y = this.m01 * other.x + this.m11 * other.y + this.m21 * other.z + this.m31 * other.w;
+		z = this.m02 * other.x + this.m12 * other.y + this.m22 * other.z + this.m32 * other.w;
+		w = this.m03 * other.x + this.m13 * other.y + this.m23 * other.z + this.m33 * other.w;
+	}
+	dest.x = x;
+	dest.y = y;
+	dest.z = z;
+	dest.w = w;
+	return dest;
+};
+
+Matrices.Matrix4.prototype.transpose = function(dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	const m00 = this.m00;
+	const m01 = this.m10;
+	const m02 = this.m20;
+	const m03 = this.m30;
+	const m10 = this.m01;
+	const m11 = this.m11;
+	const m12 = this.m21;
+	const m13 = this.m31;
+	const m20 = this.m02;
+	const m21 = this.m12;
+	const m22 = this.m22;
+	const m23 = this.m32;
+	const m30 = this.m03;
+	const m31 = this.m13;
+	const m32 = this.m23;
+	const m33 = this.m33;
+	dest.m00 = m00;
+	dest.m01 = m01;
+	dest.m02 = m02;
+	dest.m03 = m03;
+	dest.m10 = m10;
+	dest.m11 = m11;
+	dest.m12 = m12;
+	dest.m13 = m13;
+	dest.m20 = m20;
+	dest.m21 = m21;
+	dest.m22 = m22;
+	dest.m23 = m23;
+	dest.m30 = m30;
+	dest.m31 = m31;
+	dest.m32 = m32;
+	dest.m33 = m33;
+	return dest;
+};
+
+Matrices.Matrix4.prototype.translate = function(vector, dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	dest.m30 += this.m00 * vector.x + this.m10 * vector.y + this.m20 * vector.z;
+	dest.m31 += this.m01 * vector.x + this.m11 * vector.y + this.m21 * vector.z;
+	dest.m32 += this.m02 * vector.x + this.m12 * vector.y + this.m22 * vector.z;
+	dest.m33 += this.m03 * vector.x + this.m13 * vector.y + this.m23 * vector.z;
+	return dest;
+};
+
+Matrices.Matrix4.prototype.scale = function(vector, dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	dest.m00 = this.m00 * vector.x;
+	dest.m01 = this.m01 * vector.x;
+	dest.m02 = this.m02 * vector.x;
+	dest.m03 = this.m03 * vector.x;
+	dest.m10 = this.m10 * vector.y;
+	dest.m11 = this.m11 * vector.y;
+	dest.m12 = this.m12 * vector.y;
+	dest.m13 = this.m13 * vector.y;
+	dest.m20 = this.m20 * vector.z;
+	dest.m21 = this.m21 * vector.z;
+	dest.m22 = this.m22 * vector.z;
+	dest.m23 = this.m23 * vector.z;
+	return dest;
+};
+
+Matrices.Matrix4.prototype.rotate = function(angle, axis, dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	const c = Math.cos(toRadians(angle));
+	const s = Math.sin(toRadians(angle));
+	const oneminusc = 1 - c;
+	const xy = axis.x * axis.y;
+	const yz = axis.y * axis.z;
+	const xz = axis.x * axis.z;
+	const xs = axis.x * s;
+	const ys = axis.y * s;
+	const zs = axis.z * s;
+	const f00 = axis.x * axis.x * oneminusc + c;
+	const f01 = xy * oneminusc + zs;
+	const f02 = xz * oneminusc - ys;
+	const f10 = xy * oneminusc - zs;
+	const f11 = axis.y * axis.y * oneminusc + c;
+	const f12 = yz * oneminusc + xs;
+	const f20 = xz * oneminusc + ys;
+	const f21 = yz * oneminusc - xs;
+	const f22 = axis.z * axis.z * oneminusc + c;
+	const t00 = this.m00 * f00 + this.m10 * f01 + this.m20 * f02;
+	const t01 = this.m01 * f00 + this.m11 * f01 + this.m21 * f02;
+	const t02 = this.m02 * f00 + this.m12 * f01 + this.m22 * f02;
+	const t03 = this.m03 * f00 + this.m13 * f01 + this.m23 * f02;
+	const t10 = this.m00 * f10 + this.m10 * f11 + this.m20 * f12;
+	const t11 = this.m01 * f10 + this.m11 * f11 + this.m21 * f12;
+	const t12 = this.m02 * f10 + this.m12 * f11 + this.m22 * f12;
+	const t13 = this.m03 * f10 + this.m13 * f11 + this.m23 * f12;
+	dest.m20 = this.m00 * f20 + this.m10 * f21 + this.m20 * f22;
+	dest.m21 = this.m01 * f20 + this.m11 * f21 + this.m21 * f22;
+	dest.m22 = this.m02 * f20 + this.m12 * f21 + this.m22 * f22;
+	dest.m23 = this.m03 * f20 + this.m13 * f21 + this.m23 * f22;
+	dest.m00 = t00;
+	dest.m01 = t01;
+	dest.m02 = t02;
+	dest.m03 = t03;
+	dest.m10 = t10;
+	dest.m11 = t11;
+	dest.m12 = t12;
+	dest.m13 = t13;
+	return dest;
+};
+
+Matrices.Matrix4.prototype.determinant = function(){
+	let f = this.m00 * ((this.m11 * this.m22 * this.m33 + this.m12 * this.m23 * this.m31 + this.m13 * this.m21 * this.m32) - this.m13 * this.m22 * this.m31 - this.m11 * this.m23 * this.m32 - this.m12 * this.m21 * this.m33);
+	f -= this.m01 * ((this.m10 * this.m22 * this.m33 + this.m12 * this.m23 * this.m30 + this.m13 * this.m20 * this.m32) - this.m13 * this.m22 * this.m30 - this.m10 * this.m23 * this.m32 - this.m12 * this.m20 * this.m33);
+	f += this.m02 * ((this.m10 * this.m21 * this.m33 + this.m11 * this.m23 * this.m30 + this.m13 * this.m20 * this.m31) - this.m13 * this.m21 * this.m30 - this.m10 * this.m23 * this.m31 - this.m11 * this.m20 * this.m33);
+	f -= this.m03 * ((this.m10 * this.m21 * this.m32 + this.m11 * this.m22 * this.m30 + this.m12 * this.m20 * this.m31) - this.m12 * this.m21 * this.m30 - this.m10 * this.m22 * this.m31 - this.m11 * this.m20 * this.m32);
+	return f;
+};
+
+Matrices.Matrix4.prototype.invert = function(dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	const determinant = this.determinant();
+	if(determinant !== 0){
+		const determinant_inv = 1 / determinant;
+		const t00 =  determinant3x3(this.m11, this.m12, this.m13, this.m21, this.m22, this.m23, this.m31, this.m32, this.m33);
+		const t01 = -determinant3x3(this.m10, this.m12, this.m13, this.m20, this.m22, this.m23, this.m30, this.m32, this.m33);
+		const t02 =  determinant3x3(this.m10, this.m11, this.m13, this.m20, this.m21, this.m23, this.m30, this.m31, this.m33);
+		const t03 = -determinant3x3(this.m10, this.m11, this.m12, this.m20, this.m21, this.m22, this.m30, this.m31, this.m32);
+		const t10 = -determinant3x3(this.m01, this.m02, this.m03, this.m21, this.m22, this.m23, this.m31, this.m32, this.m33);
+		const t11 =  determinant3x3(this.m00, this.m02, this.m03, this.m20, this.m22, this.m23, this.m30, this.m32, this.m33);
+		const t12 = -determinant3x3(this.m00, this.m01, this.m03, this.m20, this.m21, this.m23, this.m30, this.m31, this.m33);
+		const t13 =  determinant3x3(this.m00, this.m01, this.m02, this.m20, this.m21, this.m22, this.m30, this.m31, this.m32);
+		const t20 =  determinant3x3(this.m01, this.m02, this.m03, this.m11, this.m12, this.m13, this.m31, this.m32, this.m33);
+		const t21 = -determinant3x3(this.m00, this.m02, this.m03, this.m10, this.m12, this.m13, this.m30, this.m32, this.m33);
+		const t22 =  determinant3x3(this.m00, this.m01, this.m03, this.m10, this.m11, this.m13, this.m30, this.m31, this.m33);
+		const t23 = -determinant3x3(this.m00, this.m01, this.m02, this.m10, this.m11, this.m12, this.m30, this.m31, this.m32);
+		const t30 = -determinant3x3(this.m01, this.m02, this.m03, this.m11, this.m12, this.m13, this.m21, this.m22, this.m23);
+		const t31 =  determinant3x3(this.m00, this.m02, this.m03, this.m10, this.m12, this.m13, this.m20, this.m22, this.m23);
+		const t32 = -determinant3x3(this.m00, this.m01, this.m03, this.m10, this.m11, this.m13, this.m20, this.m21, this.m23);
+		const t33 =  determinant3x3(this.m00, this.m01, this.m02, this.m10, this.m11, this.m12, this.m20, this.m21, this.m22);
+		dest.m00 = t00 * determinant_inv;
+		dest.m11 = t11 * determinant_inv;
+		dest.m22 = t22 * determinant_inv;
+		dest.m33 = t33 * determinant_inv;
+		dest.m01 = t10 * determinant_inv;
+		dest.m10 = t01 * determinant_inv;
+		dest.m20 = t02 * determinant_inv;
+		dest.m02 = t20 * determinant_inv;
+		dest.m12 = t21 * determinant_inv;
+		dest.m21 = t12 * determinant_inv;
+		dest.m03 = t30 * determinant_inv;
+		dest.m30 = t03 * determinant_inv;
+		dest.m13 = t31 * determinant_inv;
+		dest.m31 = t13 * determinant_inv;
+		dest.m32 = t23 * determinant_inv;
+		dest.m23 = t32 * determinant_inv;
+		return dest;
+	}
+	else {
+		throw "Can't invert this matrix";
+	}
+};
+
+Matrices.Matrix4.prototype.negate = function(dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	dest.m00 = -this.m00;
+	dest.m01 = -this.m01;
+	dest.m02 = -this.m02;
+	dest.m03 = -this.m03;
+	dest.m10 = -this.m10;
+	dest.m11 = -this.m11;
+	dest.m12 = -this.m12;
+	dest.m13 = -this.m13;
+	dest.m20 = -this.m20;
+	dest.m21 = -this.m21;
+	dest.m22 = -this.m22;
+	dest.m23 = -this.m23;
+	dest.m30 = -this.m30;
+	dest.m31 = -this.m31;
+	dest.m32 = -this.m32;
+	dest.m33 = -this.m33;
+	return dest;
+};
+
+//library source from MathHelper/vectors/Vectors.js
+const Vectors = {
+	dot2 : function(x1, y1, x2, y2){
+		return x1 * x2 + y1 * y2;
+	}
+};
+
+//library source from MathHelper/vectors/Vector3.js
+Vectors.Vector3 = function(x, y, z){
+	this.x = x;
+	this.y = y;
+	this.z = z;
+};
+
+Vectors.Vector3.prototype.substract = function(other, dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	if(dest === null){
+		dest = new Vectors.Vector3();
+	}
+	dest.x = this.x - other.x;
+	dest.y = this.y - other.y;
+	dest.z = this.z - other.z;
+	return dest;
+};
+
+Vectors.Vector3.prototype.add = function(other, dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	if(dest === null){
+		dest = new Vectors.Vector3();
+	}
+	dest.x = this.x + other.x;
+	dest.y = this.y + other.y;
+	dest.z = this.z + other.z;
+	return dest;
+};
+
+Vectors.Vector3.prototype.dot = function(other){
+	return this.x * other.x + this.y * other.y + this.z * other.z;
+};
+
+Vectors.Vector3.prototype.cross = function(other, dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	if(dest === null){
+		dest = new Vectors.Vector3();
+	}
+	const x = this.y * other.z - this.z * other.y;
+	const y = this.z * other.x - this.x * other.z;
+	const z = this.x * other.y - this.y * other.x;
+	dest.x = x;
+	dest.y = y;
+	dest.z = z;
+	return dest;
+};
+
+Vectors.Vector3.prototype.length = function(){
+	return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+};
+
+Vectors.Vector3.prototype.negate = function(dest){
+	if(dest === undefined){
+		dest = this;
+	}
+	if(dest === null){
+		dest = new Vectors.Vector3();
+	}
+	dest.x = -this.x;
+	dest.y = -this.y;
+	dest.z = -this.z;
+	return dest;
+};
+
+Vectors.Vector3.prototype.toString = function(){
+	return '(' + this.x + ', ' + this.y + ', ' + this.z + ')';
+};
+
+Vectors.AXIS_X = new Vectors.Vector3(1, 0, 0);
+Vectors.AXIS_Y = new Vectors.Vector3(0, 1, 0);
+Vectors.AXIS_Z = new Vectors.Vector3(0, 0, 1);
+
+//library source from MathHelper/vectors/Vector4.js
+Vectors.Vector4 = function(x, y, z, w){
+	this.x = x;
+	this.y = y;
+	this.z = z;
+	this.w = w;
+};
+
+Vectors.Vector4.prototype.toString = function(){
+	return '(' + this.x + ', ' + this.y + ', ' + this.z + ', ' + this.w + ')';
+};
+
+
+//source from file main.js
+const Game = {
+	menus : {
+		main : {
+
+		},
+		info : {
+
+		},
+		account : {
+
+		},
+		profile : {
+			models : {
+				
+			}
+		},
+		realm : {
+			select : {
+				
+			}
+		},
+		dev : {
+			
+		}
+	},
+	menuComponents : {
+		profile : {
+			models : {
+				
+			}
+		}
+	},
+	profile: {
+		models : {}
+	}
+};
+
+function main(){
+	Game.guiManager = new Gui.Manager();
+	Game.guiManager.setMainComponent(Game.menus.main.login);
+	Game.guiManager.start();
+	//TODO https://ourcodeworld.com/articles/read/189/how-to-create-a-file-and-generate-a-download-with-javascript-in-the-browser-without-a-server
+}
+
+//source from file GameUtils.js
+const AUTH_SERVER_IP = '192.168.2.17';
+const AUTH_SERVER_PORT = 42649;
+const MAX_USERNAME_LENGTH = 30;
+
+function weirdServerResponse(){
+	console.log('Weird auth server response');
+	window.alert('The authentication server is acting weird, this can be a bug, a connection problem or a corrupt server');
+}
+
+function weirdProfileServerResponse(){
+	console.log('Weird profile server response');
+	window.alert('The profile server is acting weird, this can be a bug, a connection problem or a corrupt server');
+}
+
+
+//source from file storage/LocalModels.js
+function loadLocalProfileEntityModels(){
+	let models;
+	const input = createLocalStorageInput('profileEntityModelNames');
+	if(input){
+		const amount = input.readInt();
+		models = new Array(amount);
+		for(let index = 0; index < amount; index++){
+			models[index] = input.readJavaString();
+		}
+	}
+	else {
+		models = [];
+	}
+	Game.profile.localModelNames = models;
+}
+
+function loadLocalProfileEntityModel(name){
+	const input = createLocalStorageInput('profileEntityModel' + name);
+	if(input){
+		const model= loadProfileEntityModel(input);
+		model.isLocal = true;
+		return model;
+	}
+	else {
+		return undefined;
+	}
+}
+
+
+//source from file profile/ProfileEntityModel.js
+function ProfileEntityModel(model, name, createdAt, lastModified){
+	this.model = model;
+	this.name = name;
+	this.createdAt = createdAt;
+	this.lastModified = lastModified;
+}
+
+function loadProfileEntityModel(input){
+	const encoding = input.readByte();
+	if(encoding === Game.connectionManager.profile.code.modelEncoding.ENCODING_1){
+		return loadProfileEntityModel1(input);
+	}
+	else {
+		throw 'Unknown encoding: ' + encoding;
+	}
+}
+
+function loadProfileEntityModel1(input){
+	return new ProfileEntityModel(new EntityModel(input), input.readJavaString(), input.readJavaString(), input.readJavaString());
+}
+
+//source from file world/entity/model/EntityModel.js
+function EntityModel(input){
+	this.skeleton = new EntitySkeleton(input);
+	this.texture = new EntityTexture(input);
+	this.model = new RawEntityModel(input);
+}
+
+EntityModel.prototype.save = function(output){
+	this.skeleton.save(output);
+	this.texture.save(output);
+	this.model.save(output);
+};
+
+//source from file world/entity/model/EntityTexture.js
+
+//source from file world/entity/model/RawEntityModel.js
+
+//source from file world/entity/model/skeleton/Skeleton.js
+const ENTITY_SKELETON_ENCODING_PART_LIST_1 = -128;
+
+function EntitySkeleton(input){
+	const encoding = input.readByte();
+	if(encoding === ENTITY_SKELETON_ENCODING_PART_LIST_1){
+		this.loadPartList1(input);
+	}
+	else {
+		throw 'Unknown encoding: ' + encoding;
+	}
+}
+
+EntitySkeleton.prototype.loadPartList1 = function(input){
+	const partLength = input.readByte() + 1;
+	this.parts = new Array(partLength);
+	for(let index = 0; index < partLength; index++){
+		this.parts[index] = loadEntitySkeletonPart1(input);
+	}
+}
+
+//source from file world/entity/model/skeleton/Part.js
+function loadEntitySkeletonPart1(input){
+	return new EntitySkeletonPart(input.readByte(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), createEntitySkeletonPartAnimation(input));
+}
+
+function EntitySkeletonPart(parentIndex, x, y, z, pitch, yaw, roll, animation){
+	this.parentIndex = parentIndex;
+	this.x = x;
+	this.y = y;
+	this.z = z;
+	this.pitch = pitch;
+	this.yaw = yaw;
+	this.roll = roll;
+	this.animation = animation;
+}
+
+EntitySkeletonPart.prototype.save1 = function(output){
+	output.writeByte(this.parentIndex);
+	output.writeInt(this.x);
+	output.writeInt(this.y);
+	output.writeInt(this.z);
+	output.writeInt(this.pitch);
+	output.writeInt(this.yaw);
+	output.writeInt(this.roll);
+	this.animation.save1(output);
+}
+
+//source from file world/entity/model/skeleton/animation/Animations.js
+function createEntitySkeletonPartAnimation(input){
+	const ordinal = input.readByte();
+	if(ordinal === EntitySkeletonAnimationNone.prototype.ordinal){
+		return new EntitySkeletonAnimationNone();
+	}
+	throw 'Unknown animation ordinal: ' + ordinal;
+}
+
+//source from file world/entity/model/skeleton/animation/AnimationNone.js
+function EntitySkeletonAnimationNone(){}
+
+EntitySkeletonAnimationNone.prototype.getExtraPitch = function(moveProgress, attackProgress){
+	return 0;
+};
+
+EntitySkeletonAnimationNone.prototype.getExtraYaw = function(moveProgress, attackProgress){
+	return 0;
+};
+
+EntitySkeletonAnimationNone.prototype.getExtraRoll = function(moveProgress, attackProgress){
+	return 0;
+};
+
+EntitySkeletonAnimationNone.prototype.ordinal = 0;
+
+
+//source from file gui/TextProperties.js
+const TextProperties = {
+	label : function(textColor, backgroundColor, font){
+		if(textColor === undefined) textColor = 'rgb(0,0,0)';
+		if(backgroundColor === undefined) backgroundColor = 'rgba(0,0,0,0)';
+		if(font === undefined) font = '10px sans-serif';
+		return {
+			textColor : textColor,
+			backgroundColor : backgroundColor,
+			borderX : 0,
+			borderY : 0,
+			marginX : 0,
+			marginY : 0,
+			horAlignment : 'left',
+			verAlignment: 'down',
+			font : font
+		};
+	},
+	button : function(backgroundColor, borderColor, textColor, font){
+		if(backgroundColor === undefined) backgroundColor = 'rgb(0,150,150)';
+		if(borderColor === undefined) borderColor = 'rgb(0,60,0)';
+		if(textColor === undefined) textColor = '#000000';
+		if(font === undefined) font = '10px sans-serif';
+		return {
+			textColor : textColor,
+			backgroundColor : backgroundColor,
+			borderColor : borderColor,
+			borderX : 0.05,
+			borderY : 0.1,
+			marginX : 0.05,
+			marginY : 0.1,
+			horAlignment : 'middle',
+			font : font
+		};
+	},
+	hoverButton : function(backgroundColor, borderColor, textColor, font){
+		if(backgroundColor === undefined) backgroundColor = 'rgb(0,180,180)';
+		if(borderColor === undefined) borderColor = 'rgb(0,120,0)';
+		if(textColor === undefined) textColor = 'rgb(0,0,0)';
+		if(font === undefined) font = '10px sans-serif';
+		return {
+			textColor : textColor,
+			backgroundColor : backgroundColor,
+			borderColor : borderColor,
+			borderX : 0.05,
+			borderY : 0.1,
+			marginX : 0.05,
+			marginY : 0.1,
+			horAlignment : 'middle',
+			font : font
+		};
+	},
+	tab : function(backgroundColor, borderColor, textColor, font){
+		if(backgroundColor === undefined) backgroundColor = 'rgb(0,180,180)';
+		if(borderColor === undefined) borderColor = 'rgb(0,120,0)';
+		if(textColor === undefined) textColor = 'rgb(0,0,0)';
+		if(font === undefined) font = '10px sans-serif';
+		return {
+			textColor : textColor,
+			backgroundColor : backgroundColor,
+			borderColor : borderColor,
+			borderX : 0.025,
+			borderY : 0.05,
+			marginX : 0.05,
+			marginY : 0.1,
+			horAlignment : 'middle',
+			font : font
+		};
+	},
+	hoverTab : function(backgroundColor, borderColor, textColor, font){
+		if(backgroundColor === undefined) backgroundColor = 'rgb(0,180,180)';
+		if(borderColor === undefined) borderColor = 'rgb(0,120,0)';
+		if(textColor === undefined) textColor = 'rgb(0,0,0)';
+		if(font === undefined) font = '10px sans-serif';
+		return {
+			textColor : textColor,
+			backgroundColor : backgroundColor,
+			borderColor : borderColor,
+			borderX : 0.025,
+			borderY : 0.05,
+			marginX : 0.05,
+			marginY : 0.1,
+			horAlignment : 'middle',
+			font : font
+		};
+	},
+	edit : function(textColor, backgroundColor, borderColor, font){
+		if(textColor === undefined) textColor = 'rgb(0,0,0)';
+		if(backgroundColor === undefined) backgroundColor = 'rgb(130,130,130)';
+		if(borderColor === undefined) borderColor = 'rgb(30,30,30)';
+		if(font === undefined) font = '10px verdana';
+		return {
+			textColor : textColor,
+			backgroundColor : backgroundColor,
+			borderColor : borderColor,
+			borderX : 0.03,
+			borderY : 0.06,
+			marginX : 0.1,
+			marginY : 0.1,
+			horAlignment : 'left',
+			font : font,
+			resize: false
+		};
+	},
+	focusEdit : function(textColor, backgroundColor, borderColor, font){
+		if(textColor === undefined) textColor = 'rgb(0,0,0)';
+		if(backgroundColor === undefined) backgroundColor = 'rgb(255,255,255)';
+		if(borderColor === undefined) borderColor = 'rgb(90,90,90)';
+		if(font === undefined) font = '10px verdana';
+		return {
+			textColor : textColor,
+			backgroundColor : backgroundColor,
+			borderColor : borderColor,
+			borderX : 0.03,
+			borderY : 0.06,
+			marginX : 0.1,
+			marginY : 0.1,
+			horAlignment : 'left',
+			font : font,
+			resize: false
+		};
+	},
+	listElement : function(backgroundColor, borderColor, textColor, font){
+		if(textColor === undefined) textColor = 'rgb(0,0,0)';
+		if(font === undefined) font = '10px sans-serif';
+		return {
+			backgroundColor : backgroundColor,
+			borderColor : borderColor,
+			textColor : textColor,
+			font : font,
+			borderX : 0.03,
+			borderY : 0.02,
+			marginX : 0.05,
+			marginY : 0.1,
+			horAlignment : 'left'
+		};
+	}
+}
+
+
+//source from file gui/component/profile/models/LocalList.js
+Game.menuComponents.profile.models.localList = new Gui.Menu('rgb(0,150,120)', function(){
+	const modelNames = Game.profile.localModelNames;
+	for(let index = 0; index < modelNames.length; index++){
+		this.addComponent(new LocalProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);
+	}
+});
+
+function LocalProfileModelListComponent(modelName){
+	this.text = modelName;
+	this.refreshImages();
+}
+
+extendProtoType(Gui.ActivatableTextComponent, LocalProfileModelListComponent);
+
+LocalProfileModelListComponent.prototype.isActive = function(){
+	const selectedModel = Game.menus.profile.models.selected.model;
+	return selectedModel && selectedModel.name === this.text;
+};
+
+LocalProfileModelListComponent.prototype.click = function(){
+	const profileModel = loadLocalProfileEntityModel(this.text);
+	Game.menus.profile.models.overview.setSelected(profileModel);
+};
+
+LocalProfileModelListComponent.prototype.fixedImageWidth = 450;
+LocalProfileModelListComponent.prototype.fixedImageHeight = 150;
+LocalProfileModelListComponent.prototype.props = TextProperties.listElement('rgb(255,255,255)', 'rgb(150,150,255)');
+LocalProfileModelListComponent.prototype.hoverProps = TextProperties.listElement('rgb(200,200,255)', 'rgb(100,100,255)');
+LocalProfileModelListComponent.prototype.activeProps = TextProperties.listElement('rgb(100,100,255)', 'rgb(0,0,255)');
+
+//source from file gui/component/profile/models/ServerList.js
+Game.menuComponents.profile.models.serverList = new Gui.Menu('rgb(0,150,120)', function(){
+	const modelNames = Game.profile.serverModelNames;
+	for(let index = 0; index < modelNames.length; index++){
+		this.addComponent(new ProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);
+	}
+});
+
+function ProfileModelListComponent(modelName){
+	this.text = modelName;
+	this.refreshImages();
+}
+
+extendProtoType(Gui.ActivatableTextComponent, ProfileModelListComponent);
+
+ProfileModelListComponent.prototype.isActive = function(){
+	const selectedModel = Game.menus.profile.models.selected.model;
+	return selectedModel && selectedModel.name === this.text;
+};
+
+ProfileModelListComponent.prototype.click = function(){
+	Game.connectionManager.profile.speaker.requestModel(this.text);
+};
+
+ProfileModelListComponent.prototype.fixedImageWidth = 450;
+ProfileModelListComponent.prototype.fixedImageHeight = 150;
+ProfileModelListComponent.prototype.props = TextProperties.listElement('rgb(255,255,255)', 'rgb(150,150,255)');
+ProfileModelListComponent.prototype.hoverProps = TextProperties.listElement('rgb(200,200,255)', 'rgb(100,100,255)');
+ProfileModelListComponent.prototype.activeProps = TextProperties.listElement('rgb(100,100,255)', 'rgb(0,0,255)');
+
+//source from file gui/component/profile/models/Selected.js
+Game.menus.profile.models.selected = new Gui.Menu('rgb(0,150,250)', new function(){
+	this.editButton = new Gui.TextComponent('Edit', TextProperties.button('rgb(0,200,0)', 'rgb(0,50,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,80,0)'), function(){
+		window.alert('Edit model ' + this.model.name);
+	});
+	this.viewButton = new Gui.TextComponent('View', TextProperties.button(), TextProperties.hoverButton(), function(){
+		window.alert('View this model');
+	});
+	this.deleteButton = new Gui.TextComponent('Delete', TextProperties.button(), TextProperties.hoverButton(), function(){
+		const model = Game.menus.profile.models.selected.model;
+		if(model.isLocal){//model is stored in localStorage
+			window.alert('Delete this local model');
+		}
+		else {//model is stored on the server
+			window.alert('Delete this server model');
+		}
+	})
+	this.setSelected = function(profileModel){
+		this.model = profileModel;
+		this.components = [];
+	};
+});
+
+
+//source from file gui/menu/main/Login.js
+Game.menus.main.login = new Gui.Menu('rgb(0,150,120)', function(){
+	this.username = new Gui.TextInputComponent('', MAX_USERNAME_LENGTH, TextProperties.edit(), TextProperties.focusEdit());
+	this.password = new Gui.PasswordInputComponent(50, TextProperties.edit(), TextProperties.focusEdit());
+	this.loginError = new Gui.TextComponent('', TextProperties.label('rgb(255,0,0)'));
+	this.addComponent(this.loginError, 0.2, 0.9, 0.8, 0.98);
+	this.addComponent(new Gui.TextComponent('Username', TextProperties.label()), 0.2, 0.75, 0.3, 0.8);
+	this.addComponent(this.username, 0.2, 0.625, 0.4, 0.725);
+	this.addComponent(new Gui.TextComponent('Password', TextProperties.label()), 0.2, 0.525, 0.3, 0.575);
+	this.addComponent(this.password, 0.2, 0.4, 0.4, 0.5);
+	this.addComponent(new Gui.TextComponent('Log in', TextProperties.button('rgb(0,200,0)', 'rgb(0,70,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,120,0)'), function(){
+		const menu = Game.menus.main.login;
+		menu.setLoginError('');
+		Game.connectionManager.auth.speaker.login1(menu.username.text, menu.password.text);
+		menu.password.setText('');
+	}), 0.2, 0.175, 0.4, 0.275);
+	this.addComponent(new Gui.TextComponent('No account yet?', TextProperties.label()), 0.6, 0.825, 0.75, 0.875);
+	this.addComponent(new Gui.TextComponent('Create Account', TextProperties.button('rgb(0,200,0)', 'rgb(0,70,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,120,0)'), function(){
+		Game.guiManager.setMainComponent(Game.menus.main.register);
+	}), 0.6, 0.7, 0.8, 0.8);
+	this.addComponent(new Gui.TextComponent("Don't want to create an account?", TextProperties.label()), 0.6, 0.55, 0.85, 0.6);
+	this.addComponent(new Gui.TextComponent('Play as guest', TextProperties.button('rgb(200,100,0)', 'rgb(50,25,0)'), TextProperties.hoverButton('rgb(255,150,0)', 'rgb(100,50,0)'), function(){
+	}), 0.6, 0.4, 0.8, 0.5);
+	this.addComponent(new Gui.TextComponent('?', TextProperties.button('rgb(200,100,0)', 'rgb(50,25,0)'), TextProperties.hoverButton('rgb(255,150,0)', 'rgb(100,50,0)'), function(){
+		Game.guiManager.setMainComponent(Game.menus.info.playGuest);
+	}), 0.815, 0.42, 0.845, 0.48);
+	this.addComponent(new Gui.TextComponent('Spectate', TextProperties.button('rgb(150,0,200)', 'rgb(50,0,70)'), TextProperties.button('rgb(210,0,255)', 'rgb(70,0,100)'), function(){
+	}), 0.6, 0.25, 0.8, 0.35);
+	this.addComponent(new Gui.TextComponent('?', TextProperties.button('rgb(150,0,200)', 'rgb(50,0,70)'), TextProperties.button('rgb(210,0,255)', 'rgb(70,0,100)'), function(){
+		Game.guiManager.setMainComponent(Game.menus.info.spectate);
+	}), 0.815, 0.27, 0.845, 0.33);
+	this.setLoginError = function(error){
+		this.loginError.setText(error);
+	};
+});
+
+//source from file gui/menu/main/Register.js
+Game.menus.main.register = new Gui.Menu('rgb(0,150,120)', function(){
+	this.username = new Gui.TextInputComponent('', MAX_USERNAME_LENGTH, TextProperties.edit(), TextProperties.focusEdit());
+	this.password = new Gui.PasswordInputComponent(50, TextProperties.edit(), TextProperties.focusEdit());
+	this.registerError = new Gui.TextComponent('', TextProperties.label('rgb(255,0,0'));
+	this.repeatPassword = new Gui.PasswordInputComponent(50, TextProperties.edit(), TextProperties.focusEdit());
+	this.addComponent(this.registerError, 0.2, 0.9, 0.8, 0.98);
+	this.addComponent(new Gui.TextComponent('Username', TextProperties.label()), 0.3, 0.825, 0.4, 0.875);
+	this.addComponent(this.username, 0.3, 0.7, 0.5, 0.8);
+	this.addComponent(new Gui.TextComponent('Password', TextProperties.label()), 0.3, 0.6, 0.4, 0.65);
+	this.addComponent(this.password, 0.3, 0.475, 0.5, 0.575);
+	this.addComponent(new Gui.TextComponent('Repeat password', TextProperties.label()), 0.3, 0.375, 0.5, 0.425);
+	this.addComponent(this.repeatPassword, 0.3, 0.25, 0.5, 0.35);
+	this.addComponent(new Gui.TextComponent('Cancel', TextProperties.button('rgb(200,0,0', 'rgb(50,0,0)'), TextProperties.button('rgb(255,0,0)', 'rgb(80,0,0)'),function(){
+		Game.guiManager.setMainComponent(Game.menus.main.login);
+	}), 0.05, 0.8, 0.2, 0.9);
+	this.addComponent(new Gui.TextComponent('Create account', TextProperties.button('rgb(0,200,0)', 'rgb(0,50,0)'), TextProperties.button('rgb(0,255,0)', 'rgb(0,80,0)'), function(){
+		const menu = Game.menus.main.register;
+		if(menu.password.text === menu.repeatPassword.text){
+			Game.connectionManager.auth.speaker.register(menu.username.text, menu.password.text);
+			menu.password.setText('');
+			menu.repeatPassword.setText('');
+			menu.setRegisterError('');
+		}
+		else {
+			menu.setRegisterError('The password is not equal to the repeat password');
+		}
+	}), 0.3, 0.05, 0.5, 0.15);
+	this.addComponent(new Gui.TextComponent('Restrictions:', TextProperties.label()), 0.6, 0.6, 0.7, 0.65);
+	this.addComponent(new Gui.TextComponent('Every account must have another usename', TextProperties.label()), 0.625, 0.525, 0.9, 0.575);
+	this.addComponent(new Gui.TextComponent('Only 10 accounts can be created at every IP-address', TextProperties.label()), 0.625, 0.45, 0.975, 0.5);
+	this.setRegisterError = function(error){
+		this.registerError.setText(error);
+	};
+});
+
+//source from file gui/menu/main/AfterAuth.js
+Game.menus.main.afterAuth = new Gui.Menu('rgb(0, 150, 120)', function(){
+	this.tabProperties = TextProperties.tab('rgb(90,150,120)', 'rgb(0,150,120)');
+	this.tabHoverProperties = TextProperties.hoverTab('rgb(70,150,120)', 'rgb(0,150,120)');
+	this.tabActiveProperties = TextProperties.tab('rgb(0,150,120)', 'rgb(0,150,120)');
+	this.tabComponent = new Gui.WrapperComponent(new Gui.BackgroundComponent('rgb(0,150,120)'));
+	this.addComponent(this.tabComponent, 0, 0, 1, 0.95);
+	this.addComponent(new Gui.BackgroundComponent('rgb(120,150,120)'), 0, 0.95, 1, 1);
+	this.addComponent(new Gui.ActivatableTextComponent('Play', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
+		Game.connectionManager.auth.speaker.realmList();
+	}, function(){
+		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.realm.select.overview;
+	}), 0, 0.95, 0.1, 1);
+	this.addComponent(new Gui.ActivatableTextComponent('Profile', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
+		Game.connectionManager.auth.speaker.profileLogin();
+	}, function(){
+		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.profile.overview;
+	}), 0.11, 0.95, 0.21, 1);
+	this.addComponent(new Gui.ActivatableTextComponent('Account', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
+		Game.connectionManager.auth.speaker.accountData();
+	}, function(){
+		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.account.overview;
+	}), 0.22, 0.95, 0.32, 1);
+	if(Game.connectionManager.auth.state.op){
+		this.addComponent(new Gui.ActivatableTextComponent('Dev', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
+			window.alert('Connect with the development server');
+		}, function(){
+			return Game.menus.main.afterAuth.tabComponent.component === Game.menus.dev.overview;
+		}), 0.9, 0.95, 1, 1);
+	}
+	this.setActiveTab = function(menu){
+		this.tabComponent.setComponent(menu);
+	};
+});
+
+//source from file gui/menu/realm/select/Overview.js
+Game.menus.realm.select.overview = new Gui.Menu('rgb(0,150,120)', function(){
+	this.addComponent(new Gui.TextComponent('Realms', TextProperties.label()), 0.1, 0.8, 0.35, 0.95);
+	this.addComponent(Game.menus.realm.select.list, 0.1, 0.05, 0.45, 0.7);
+	this.addComponent(Game.menus.realm.select.selected, 0.6, 0.2, 0.95, 0.7);
+	this.setSelected = function(realm){
+		Game.menus.realm.list.setSelected(realm);
+		Game.menus.realm.selected.setSelected(realm);
+	};
+});
+
+//source from file gui/menu/realm/select/List.js
+Game.menus.realm.select.list = new Gui.Menu('rgb(0,150,120)', function(){
+	this.realmProps = TextProperties.listElement('rgb(200,200,255)', '50,50,255');
+	this.realmHoverProps = TextProperties.listElement('rgb(100,100,255)', 'rgb(0,0,255)');
+	this.setSelected = function(realmName){
+		if(this.selected){
+			this.selected.setProps(this.realmProps);
+			this.selected.setHoverProps(this.realmHoverProps);
+		}
+		for(let index = 0; index < this.components.length; index++){
+			if(this.components[index].component.text === realmName){
+				this.selected = this.components[index].component;
+				this.selected.setProps(this.realmSelectedProps);
+				this.selected.setHoverProps(this.realmSelectedProps);
+				break;
+			}
+		}
+	};
+	this.refresh = function(){
+		this.components = [];
+		if(Game.realms.length > 0){
+			for(let index = 0; index < Game.realms.length; index++){
+				this.addComponent(new Gui.TextComponent(Game.realms[index], realmProps, realmHoverProps, function(){
+					Game.connectionManager.auth.speaker.realmInfo(this.text);
+				}, 512, 128), 0, 0.95 - index * 0.1, 1, 1 - index * 0.1);
+			}
+		}
+		else {
+			this.addComponent(new Gui.TextComponent('There are no available realms at the moment', TextProperties.label()), 0, 0.95, 1, 1);
+		}
+	};
+});
+
+//source from file gui/menu/realm/select/Selected.js
+Game.menus.realm.select.selected = new Gui.Menu('rgb(0,150,120)', function(){
+	this.onlineComponent = new Gui.TextComponent('Online', TextProperties.label('rgb(0,200,0)'));
+	this.offlineComponent = new Gui.TextComponent('Offline', TextProperties.label('rgb(200,0,0)'));
+	this.backgroundComponent = new Gui.BackgroundComponent('rgb(0,100,255)');
+	this.joinButton = new Gui.TextComponent('Join', TextProperties.button('rgb(0,200,0)', '0,100,0'), TextProperties.button('rgb(0,255,0)', 'rgb(0,150,0)'), function(){
+		window.alert('Work in progress');
+	});
+	this.setSelected = function(realm){
+		this.realmName = realm.name;
+		this.components = [];
+		this.addComponent(this.backgroundComponent, 0, 0, 1, 1);
+		this.addComponent(new Gui.TextComponent(realm.name, TextProperties.label(), undefined, undefined, 512, 128), 0.1, 0.8, 0.7, 0.95);
+		if(realm.online){
+			this.addComponent(this.onlineComponent, 0.1, 0.625, 0.25, 0.7);
+			this.addComponent(new Gui.TextComponent('Online players: ' + realm.onlinePlayers + ' / ' + realm.maxOnlinePlayers, TextProperties.label()), 0.1, 0.525, 0.35, 0.6);
+			this.addComponent(new Gui.TextComponent('Total players: ' + realm.totalPlayers, TextProperties.label()), 0.1, 0.425, 0.3, 0.5);
+			this.addComponent(new Gui.TextComponent('Created at ' + realm.createdAt, TextProperties.label()), 0.1, 0.3, 0.3, 0.375);
+			this.addComponent(this.joinButton, 0.7, 0.2, 0.9, 0.3);
+		}
+		else {
+			this.addComponent(this.offlineComponent, 0.1, 0.625, 0.25, 0.7);
+		}
+	};
+});
+
+//source from file gui/menu/profile/Overview.js
+Game.menus.profile.overview = new Gui.Menu('rgb(0, 150, 120)', function(){
+	this.tabProperties = TextProperties.tab('rgb(90,150,120)', 'rgb(0,150,120)');
+	this.tabHoverProperties = TextProperties.hoverTab('rgb(70,150,120)', 'rgb(0,150,120)');
+	this.tabActiveProperties = TextProperties.tab('rgb(0,150,120)', 'rgb(0,150,120)');
+	this.tabComponent = new Gui.WrapperComponent(new Gui.BackgroundComponent('rgb(0,150,120)'));
+	this.addComponent(this.tabComponent, 0, 0, 1, 0.95);
+	this.addComponent(new Gui.BackgroundComponent('rgb(120,150,120)'), 0, 0.95, 1, 1);
+	this.addComponent(new Gui.ActivatableTextComponent('Character models', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
+		Game.connectionManager.profile.speaker.requestModels();
+	}, function(){
+		return Game.menus.profile.overview.tabComponent.component === Game.menus.profile.models.overview;
+	}), 0, 0.95, 0.1, 1);
+	this.setActiveTab = function(menu){
+		this.tabComponent.setComponent(menu);
+	};
+});
+
+//source from file gui/menu/profile/Models.js
+Game.menus.profile.models.overview = new Gui.Menu('rgb(0,150,120)', function(){
+	this.addComponent(new Gui.TextComponent('Character models', TextProperties.label()), 0.1, 0.8, 0.4, 0.95);
+	this.addComponent(Game.menuComponents.profile.models.serverList, 0.05, 0.3, 0.3, 0.7);
+	this.addComponent(Game.menuComponents.profile.models.localList, 0.325, 0.3, 0.575, 0.7);
+	this.addComponent(Game.menuComponents.profile.models.selected, 0.6, 0.4, 0.95, 0.7);
+	this.addComponent(new Gui.ActivatableTextComponent('Create new', TextProperties.button('rgb(0,0,200)', 'rgb(0,0,50)'), TextProperties.button('rgb(0,0,255)', 'rgb(0,0,80)'), TextProperties.button('rgb(200,0,0)', 'rgb(50,0,0)'), function(){
+		window.alert('Create new model...');
+	}, function(){
+		return Game.profile.modelNames.length < Game.profile.maxModelSlots;
+	}), 0.1, 0.1, 0.3, 0.2);
+	this.setSelected = function(model){
+		Game.menuComponents.profile.models.selected.setSelected(model);
+		this.state.getManager().markDirty();
+	};
+});
+
+//source from file gui/menu/account/Overview.js
+Game.menus.account.overview = new Gui.Menu('rgb(0,150,120)', function(){
+	this.addComponent(new Gui.TextComponent('Account', TextProperties.label()), 0.15, 0.75, 0.4, 0.95);
+	this.addComponent(new Gui.TextComponent('ID', TextProperties.label()), 0.15, 0.55, 0.2, 0.65);
+	this.addComponent(new Gui.TextComponent('Username', TextProperties.label()), 0.15, 0.4, 0.35, 0.5);
+	this.addComponent(new Gui.TextComponent('Created at', TextProperties.label()), 0.15, 0.25, 0.35, 0.35);
+
+	this.addComponent(new Gui.TextComponent(Game.account.id, TextProperties.label(), undefined, undefined, 600, 100), 0.4, 0.55, 0.70, 0.65);
+	this.addComponent(new Gui.TextComponent(Game.account.username, TextProperties.label(), undefined, undefined, 600, 100), 0.4, 0.4, 0.70, 0.5);
+	this.addComponent(new Gui.TextComponent(Game.account.creationAddress, TextProperties.label(), undefined, undefined, 600, 100), 0.4, 0.25, 0.70, 0.35);
+});
+
+//source from file gui/menu/info/PlayGuest.js
+Game.menus.info.playGuest = new Gui.Menu('rgb(0,150,120)', function(){
+	
+});
+
+//source from file gui/menu/info/Spectate.js
+Game.menus.info.spectate = new Gui.Menu('rgb(0,150,120)', function(){
+	
+});
+
+
+//source from file gui/menu/editor/model/ModelEditor.js
+function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
+	this.didInit = false;
+	this.components = [];
+
+	this.name = name;
+	this.builder = modelBuilder;
+	this.save = save;
+	this.saveAs = saveAs;
+	this.exit = exit;
+
+	this.hasChanges = false;
+	// Initialize in addComponents
+	this.camera = null;
+	this.viewMode = ModelViewMode.ABSTRACT;
+	this.selected = null;
+}
+
+extendProtoType(Gui.Menu, GuiModelEditor);
+
+GuiModelEditor.prototype.backgroundColor = 'rgb(0, 50, 250)';
+
+GuiModelEditor.prototype.tabProperties = TextProperties.tab('rgb(200,200,250)', 'rgb(150,150,250)');
+GuiModelEditor.prototype.tabHoverProperties = TextProperties.hoverTab('rgb(170,170,250)', 'rgb(120,120,250)');
+GuiModelEditor.prototype.tabActiveProperties = TextProperties.tab('rgb(130,130,250)', 'rgb(100,100,250)');
+
+GuiModelEditor.prototype.addComponents = function(){
+	this.camera = new Gui3D.Camera(70, 0.01, 1000, this.state.getWidth(), this.state.getHeight(), 0, 0, 5, 0, 0, 0);
+	this.addComponent(new Gui.BackgroundComponent(this.backgroundColor), 0.0, 0.9, 1.0, 1.0);
+	this.addComponent(new ModelEditorModelComponent(this), 0.05, 0.05, 0.6, 0.9);
+	this.addFullComponent(ModelEditorToolbars.createFile(this));
+	this.addFullComponent(ModelEditorToolbars.createAdd(this));
+};
+
+GuiModelEditor.prototype.setPopup = function(popup){
+	if(popup){
+		this.state.getManager().setMainComponent(new Gui.PopupMenu(this, popup, 0.25, 0.25, 0.75, 0.75));
+	} else {
+		this.state.getManager().setMainComponent(this);
+	}
+};
+
+GuiModelEditor.prototype.setViewMode = function(view){
+	this.viewMode = view;
+	this.state.getManager().markDirty();
+};
+
+const ModelEditorToolbars = {
+	upperProps : TextProperties.label('black', 'rgb(200,200,250)'),
+	upperHoverProps : TextProperties.label('black', 'rgb(170,170,250)'),
+	upperActiveProps : TextProperties.label('black', 'rgb(130,130,250)'),
+
+	props : TextProperties.listElement('rgb(180,180,250)', 'rgb(40,40,60)'),
+	hoverProps : TextProperties.listElement('rgb(120,120,250)', 'rgb(30,30,40)')
+};
+
+const ModelEditorPopups = {
+	labelProps : TextProperties.label('rgb(200,200,200)'),
+	buttonProps : TextProperties.button('rgb(100,0,200)', 'rgb(200,0,255)'),
+	buttonHoverProps : TextProperties.hoverButton('rgb(130,0,255)', 'rgb(255,0,255)'),
+	backgroundColor : 'rgb(25, 0, 100)'
+};
+
+//source from file gui/menu/editor/model/ModelComponent.js
+function ModelEditorModelComponent(editor){
+	this.editor = editor;
+	this.pressedKeys = {};
+}
+
+ModelEditorModelComponent.prototype.render = function(renderer){
+	this.editor.viewMode.render(renderer, this.editor.builder, this.editor.camera.getMatrix());
+};
+
+ModelEditorModelComponent.prototype.update = function(){
+	const k = this.pressedKeys;
+	const cameraSpeed = 0.01;
+	const objectSpeed = 0.01;
+	if (k['a']) {
+		this.editor.camera.increaseX(-cameraSpeed);
+		this.state.getManager().markDirty();
+	}
+	if (k['d']) {
+		this.editor.camera.increaseX(cameraSpeed);
+		this.state.getManager().markDirty();
+	}
+	if (k['s']) {
+		if (k['shift'])
+			this.editor.camera.increaseY(-cameraSpeed);
+		else
+			this.editor.camera.increaseZ(cameraSpeed);
+		this.state.getManager().markDirty();
+	}
+	if (k['w']) {
+		if (k['shift'])
+			this.editor.camera.increaseY(cameraSpeed);
+		else
+			this.editor.camera.increaseZ(-cameraSpeed);
+		this.state.getManager().markDirty();
+	}
+	if (this.editor.selected) {
+		if (k['ArrowLeft']) {
+			this.editor.selected.move(-objectSpeed, 0);
+			this.state.getManager().markDirty();
+		}
+		if (k['ArrowRight']) {
+			this.editor.selected.move(objectSpeed, 0);
+			this.state.getManager().markDirty();
+		}
+		if (k['ArrowUp']) {
+			if (k['shift'])
+				this.editor.selected.move(0, objectSpeed, 0);
+			else
+				this.editor.selected.move(0, 0, -objectSpeed);
+			this.state.getManager().markDirty();
+		}
+		if (k['ArrowDown']) {
+			if (k['shift'])
+				this.editor.selected.move(0, -objectSpeed, 0);
+			else
+				this.editor.selected.move(0, 0, objectSpeed);
+			this.state.getManager().markDirty();
+		}
+	}
+};
+
+ModelEditorModelComponent.prototype.keyDown = function(key){
+	this.pressedKeys[key] = true;
+};
+
+ModelEditorModelComponent.prototype.keyUp = function(key){
+	this.pressedKeys[key] = false;
+};
+
+//source from file gui/menu/editor/model/toolbar/File.js
+ModelEditorToolbars.createFile = function(editor){
+	const t = ModelEditorToolbars;
+	const toolbar = new Gui.Toolbar('File', t.upperProps, t.upperHoverProps, t.upperActiveProps, 0.05, 0.05, 0.25, 0.15, function(){
+		this.addComponent(new Gui.TextComponent('Save', t.props, t.hoverProps, function(x, y, button){
+			editor.save();
+		}), 0.05);
+		this.addComponent(new Gui.TextComponent('Save as', t.props, t.hoverProps, function(x, y, button){
+			editor.saveAs();
+		}), 0.05);
+		this.addComponent(new Gui.TextComponent('Exit', t.props, t.hoverProps, function(x, y, button){
+			if (editor.hasChanges){
+				const popup = new Gui.Menu(ModelEditorPopups.backgroundColor, function(){
+					this.addComponent(new Gui.TextComponent('Would you like to save?', ModelEditorPopups.label), 0.2, 0.6, 0.8, 0.8);
+					this.addComponent(new Gui.TextComponent('Yes', ModelEditorPopups.button, ModelEditorPopups.hoverButton, function(x, y, button){
+						editor.save();
+						editor.exit();
+					}), 0.1, 0.2, 0.3, 0.4);
+					this.addComponent(new Gui.TextComponent('No', ModelEditorPopups.button, ModelEditorPopups.hoverButton, function(x, y, button){
+						editor.exit();
+					}), 0.35, 0.2, 0.55, 0.4);
+					this.addComponent(new Gui.TextComponent('Cancel', ModelEditorPopups.button, ModelEditorPopups.hoverButton, function(x, y, button){
+						editor.setPopup(null);
+					}), 0.6, 0.2, 0.85, 0.4);
+				});
+				editor.setPopup(popup);
+			} else {
+				editor.exit();
+			}
+		}), 0.05);
+	});
+	return toolbar;
+};
+
+//source from file gui/menu/editor/model/toolbar/Add.js
+ModelEditorToolbars.createAdd = function(editor){
+	const t = ModelEditorToolbars;
+	const toolbar = new Gui.Toolbar('Add', t.upperProps, t.upperHoverProps, t.upperActiveProps, 0.05, 0.15, 0.35, 0.25, function(){
+		this.addComponent(new Gui.TextComponent('Vertex', t.props, t.hoverProps, function(x, y, button){
+			const cam = editor.camera;
+			const look = cam.getLookVector();
+			editor.selected = new ModelEditorSelectedVertex(editor, editor.builder.addVertex(cam.getX() + look.getX(), cam.getY() + look.getY(), cam.getZ() + look.getZ(), 0, 0, 0));
+			editor.setViewMode(ModelViewMode.ABSTRACT);
+		}));
+	});
+};
+
+//source from file gui/menu/editor/model/viewmode/ViewMode.js
+const ModelViewMode = {};
+
+//source from file gui/menu/editor/model/viewmode/Abstract.js
+ModelViewMode.ABSTRACT = {
+	render : function(renderer, modelBuilder, cameraMatrix){
+		const skeleton = modelBuilder.skeleton;
+		const matrices = modelBuilder.matrices;
+		const positions = modelBuilder.positions;
+		const posLength = positions.length;
+		const points = new Array(posLength);
+		for (let index = 0; index < posLength; index += 3){
+			const vec3 = new Vectors.Vector3(positions[index], positions[index + 1], positions[index + 2]);
+			const vec4 = skeleton.parts[matrices[index / 3]].matrix.transform(vec3);
+			cameraMatrix.transform(vec4, vec4);
+			if (vec4.w < 0) {
+				vec4.w = -vec4.w;
+			}
+			points[index] = vec4.x / vec4.w;
+			points[index + 1] = vec4.y / vec4.w;
+			points[index + 2] = vec4.z / vec4.w;
+
+			// Add support for circles later
+			renderer.fillRect('rgb(0,0,0)', points[index] - 0.05, points[index + 1] - 0.05, points[index] + 0.05, points[index + 1] + 0.05);
+		}
+	}
+};
+
+//source from file gui/menu/editor/model/viewmode/Real.js
+ModelViewMode.REAL = {
+	render : function(renderer, modelBuilder, cameraMatrix){
+		renderer.renderModels(0, 0, 1, 1, cameraMatrix, [modelBuilder]);
+	}
+};
+
+//source from file gui/menu/editor/model/selected/Vertex.js
+function ModelEditorSelectedVertex(modelBuilder, index){
+	this.model = builder;
+	this.index = index;
+}
+
+ModelEditorSelectedVertex.prototype.move = function(dx, dy, dz){
+	this.model.positions[this.index * 3] += dx;
+	this.model.positions[this.index * 3 + 1] += dy;
+	this.model.positions[this.index * 3 + 2] += dz;
+};
+
+
+//source from file connection/Manager.js
+Game.connectionManager = {
+	auth : {
+		state: {
+			STATE_DEFAULT : 0,
+			STATE_LOGIN_1 : 1,
+			STATE_LOGIN_2 : 2,
+			STATE_REGISTER : 3,
+			STATE_LOGGED_IN : 4,
+			
+			ACTION_STATE_NOTHING : 0,
+			ACTION_STATE_PROFILE_LOGIN : 1,
+			ACTION_STATE_REALM_LIST : 2,
+			ACTION_STATE_ACCOUNT_DATA : 3,
+			ACTION_STATE_REALM_INFO : 4,
+			
+			password : undefined,
+			waitingForRealmInfo : undefined,
+			op : false,
+			state : 0,
+			actionState : 0
+		},
+		startConnection : function(){
+			if(this.connection === undefined){
+				const auth = this;
+				this.connection = new WebClient.Connection(AUTH_SERVER_IP, AUTH_SERVER_PORT, function(input){
+					auth.listener.process(input);
+				}, function(event){
+					auth.state.password = undefined;
+					auth.state.state = auth.state.STATE_DEFAULT;
+					console.log('Connection has been closed', event);
+					window.alert('Disconnected from server');
+					auth.connection = undefined;
+				}, function(event){
+					console.log('Connection has been opened', event);
+				}, function(event){
+					auth.state.password = undefined;
+					auth.state.state = auth.state.STATE_DEFAULT;
+					auth.connection = undefined;
+					Game.guiManager.setMainComponent(Game.menus.loginMenu);
+					window.alert("Can't connect to the authentication server");
+				});
+			}
+		},
+		closeConnection : function(){
+			if(this.connection !== undefined){
+				this.connection.close();
+			}
+		}
+	},
+	profile : {
+		state : {
+			STATE_DEFAULT : 0,
+			STATE_REQUESTING_KEY : 1,
+			STATE_LOGGING_IN : 2,
+			STATE_LOGGED_IN : 3,
+			STATE_GETTING_MODELS : 4,
+			STATE_GETTING_MODEL : 5,
+			STATE_ADDING_MODEL : 6,
+			STATE_CHANGING_MODEL : 7,
+			
+			state : 0,
+			op : false,
+			waitingModelName : undefined,
+			canRequest : function(){
+				return this.state === this.state.STATE_LOGGED_IN || this.state === this.state.STATE_GETTING_MODEL;
+			}
+		},
+		startConnection : function(authKey, address, port){
+			if(this.connection === undefined){
+				const profile = this;
+				this.state.authKey = authKey;
+				let stringAddress = '';
+				stringAddress += address[0] & 0xFF;
+				for(let index = 1; index < address.length; index++){//I am afraid this won't work for IPv6 addresses
+					stringAddress += '.';
+					stringAddress += address[index] & 0xFF;
+				}
+				console.log('address', address);
+				console.log('stringAddress is ' + stringAddress + ' and port is ' + port);
+				this.connection = new WebClient.Connection(stringAddress, port, function(input){
+					profile.listener.process(input);
+				}, function(event){
+					profile.state.state = profile.state.STATE_DEFAULT;
+					console.log('Connection with profile server has been closed', event);
+					window.alert('Disconnected from profile server');
+					profile.connection = undefined;
+				}, function(event){
+					console.log('Connection with profile server has been opened', event);
+					profile.speaker.login();
+				}, function(event){
+					profile.state.state = profile.state.STATE_DEFAULT;
+					profile.connection = undefined;
+					Game.guiManager.setMainComponent(Game.menus.afterAuthMenu);
+					window.alert("Can't connect to the profile server");
+				});
+			}
+		},
+		closeConnection : function(){
+			if(this.connection !== undefined){
+				this.connection.close();
+			}
+		}
+	}
+};
+
+//source from file connection/protocol/auth/Code.js
+Game.connectionManager.auth.code = {
+	CtS : {
+		LOGIN_1 : 0,
+		LOGIN_2 : 1,
+		REGISTER : 2,
+		REALM_LIST : 3,
+		ACCOUNT_DATA : 4,
+		PROFILE : 5,
+		REALM_INFO : 6,
+		
+		BITCOUNT : 3,
+		AMOUNT : 7
+	},
+	StC: {
+		LOGIN_1 : 0,
+		LOGIN_1_FAILED : 1,
+		LOGIN_2 : 2,
+		LOGIN_2_FAILED : 3,
+		REGISTER : 4,
+		REGISTER_FAILED : 5,
+		REALM_LIST : 6,
+		ACCOUNT_DATA : 7,
+		PROFILE_LOGIN : 8,
+		PROFILE_LOGIN_FAILED : 9,
+		REALM_INFO : 10,
+		
+		BITCOUNT : 4,
+		AMOUNT : 11,
+		
+		LoginFail1 : {
+			NO_USERNAME : 0,
+			ALREADY_LOGGED_IN : 1,
+			UNDER_ATTACK : 2,
+			
+			BITCOUNT : 2
+		},
+		LoginFail2 : {
+			WRONG_PASSWORD : 0,
+			ALREADY_LOGGED_IN : 1,
+			
+			BITCOUNT : 1
+		},
+		RegisterFail : {
+			NAME_IN_USE : 0,
+			IP_LIMIT_EXCEEDED : 1,
+			
+			BITCOUNT : 1
+		},
+		ProfileFail : {
+			SERVER_DOWN : 0,
+			ADDRESS_UNKNOWN : 1,
+			
+			BITCOUNT : 1
+		}
+	}
+};
+
+//source from file connection/protocol/auth/Listener.js
+(function(){
+	const auth = Game.connectionManager.auth;
+	const profile = Game.connectionManager.profile;
+	const protocolLogin1 = {
+		process : function(input){
+			if(auth.state.state === auth.state.STATE_LOGIN_1){
+				const salt = input.readJavaString();
+				const tempHasher = input.readInts(4);
+				auth.speaker.login2(salt, tempHasher);
+			}
+			else {
+				weirdServerResponse();
+			}
+		}
+	};
+	const protocolLoginFail1 = {
+		process : function(input){
+			if(auth.state.state === auth.state.STATE_LOGIN_1){
+				auth.state.state = auth.state.STATE_DEFAULT;
+				const reasonCode = input.readNumber(auth.code.StC.LoginFail1.BITCOUNT, false);
+				const lf = auth.code.StC.LoginFail1;
+				if(reasonCode === lf.NO_USERNAME){
+					Game.menus.main.login.setLoginError('There is no account with that name');
+				}
+				else if(reasonCode === lf.ALREADY_LOGGED_IN){
+					Game.menus.main.login.setLoginError('This account is already logged in.');
+				}
+				else if(reasonCode === lf.UNDER_ATTACK){
+					Game.menus.main.login.setLoginError("You can't try to log in with this account because you failed too many times today and multiply people are trying to get access to this account");
+				}
+				else {
+					weirdServerResponse();
+				}
+			}
+			else {
+				weirdServerResponse();
+			}
+		}
+	};
+	const protocolLogin2 = {
+		process : function(input){
+			if(auth.state.state === auth.state.STATE_LOGIN_2){
+				auth.state.password = undefined;
+				auth.state.op = input.readBoolean();
+				auth.state.state = auth.state.STATE_LOGGED_IN;
+				Game.guiManager.setMainComponent(Game.menus.main.afterAuth);
+			}
+			else {
+				weirdServerResponse();
+			}
+		}
+	};
+	const protocolLoginFail2 = {
+		process : function(input){
+			if(auth.state.state === auth.state.STATE_LOGIN_2){
+				auth.state.password = undefined;
+				auth.state.state = auth.state.STATE_DEFAULT;
+				const reasonCode = input.readNumber(auth.code.StC.LoginFail2.BITCOUNT, false);
+				if(reasonCode === auth.code.StC.LoginFail2.WRONG_PASSWORD){
+					Game.menus.main.login.setLoginError('The password is incorrect');
+				}
+				else if(reasonCode === auth.code.StC.LoginFail2.ALREADY_LOGGED_IN){
+					Game.menus.main.login.setLoginError('This account is already logged in');
+				}
+				else {
+					weirdServerResponse();
+				}
+			}
+			else {
+				weirdServerResponse();
+			}
+		}
+	};
+	const protocolRegister = {
+		process : function(input){
+			if(auth.state.state === auth.state.STATE_REGISTER){
+				auth.state.state = auth.state.STATE_LOGGED_IN;
+				Game.guiManager.setMainComponent(Game.menus.main.afterAuth);
+			}
+			else {
+				weirdServerResponse();
+			}
+		}
+	};
+	const protocolRegisterFailed = {
+		process : function(input){
+			if(auth.state.state === auth.state.STATE_REGISTER){
+				auth.state.state = auth.state.STATE_DEFAULT;
+				const reasonCode = input.readNumber(auth.code.StC.RegisterFail.BITCOUNT, false);
+				if(reasonCode === auth.code.StC.RegisterFail.NAME_IN_USE){
+					Game.menus.main.register.setRegisterError('This username has been taken already');
+				}
+				else if(reasonCode === auth.code.StC.RegisterFail.IP_LIMIT_EXCEEDED){
+					Game.menus.main.register.setRegisterError('Your IP address has reached the limit of 10 accounts');
+				}
+				else {
+					weirdServerResponse();
+				}
+			}
+			else {
+				weirdServerResponse();
+			}
+		}
+	};
+	const protocolProfileLogin = {
+		process : function(input){
+			if(auth.state.actionState === auth.state.ACTION_STATE_PROFILE_LOGIN){
+				const profileAddress = input.readByteArray();
+				const profilePort = input.readChar();
+				const authKey = input.readInts(8);
+				profile.startConnection(authKey, profileAddress, profilePort);
+				auth.state.actionState = auth.state.ACTION_STATE_NOTHING;
+			}
+			else {
+				weirdServerResponse();
+			}
+		}
+	};
+	const protocolProfileLoginFailed = {
+		process : function(input){
+			if(auth.state.actionState === auth.state.ACTION_STATE_PROFILE_LOGIN){
+				const reason = input.readNumber();
+				if(reason === auth.code.StC.ProfileFail.SERVER_DOWN){
+					window.alert("The profile server appears to be down");
+				}
+				else if(reason === auth.code.StC.ProfileFail.ADDRESS_UNKNOWN){
+					window.alert("It looks like the authentication server is not yet ready");
+				}
+				else {
+					weirdServerResponse();
+				}
+				auth.state.actionState = auth.state.ACTION_STATE_NOTHING;
+			}
+			else {
+				weirdServerResponse();
+			}
+		}
+	};
+	const protocolRealmList = {
+		process : function(input){
+			if(auth.state.actionState === auth.state.ACTION_STATE_REALM_LIST){
+				const amount = input.readInt();
+				Game.realms = new Array(amount);
+				for(let index = 0; index < amount; index++){
+					Game.realms[index] = {
+						name : input.readJavaString()
+					}
+				}
+				auth.state.actionState = auth.state.ACTION_STATE_NOTHING;
+				Game.menus.main.afterAuth.setActiveTab(Game.menus.realm.select.overview);
+				Game.menus.realm.select.list.refresh();
+			}
+			else {
+				weirdServerResponse();
+			}
+		}
+	};
+	const protocolAccountData = {
+		process : function(input){
+			if(auth.state.actionState === auth.state.ACTION_STATE_ACCOUNT_DATA){
+				Game.account = {
+					id : input.readJavaString(),
+					username : input.readJavaString()
+				};
+				const creationAddress = input.readByteArray();
+				let creationString = '';
+				creationString += creationAddress[0] & 0xFF;
+				for(let index = 1; index < creationAddress.length; index++){
+					creationString += '.';
+					creationString += creationAddress[index] & 0xFF;
+				}
+				Game.account.creationAddress = creationString;
+				auth.state.actionState = auth.state.ACTION_STATE_NOTHING;
+				Game.menus.main.afterAuth.setActiveTab(Game.menus.account.overview);
+			}
+			else {
+				weirdServerResponse();
+			}
+		}
+	};
+	const protocolRealmInfo = {
+		process : function(input){
+			if(auth.state.actionState === auth.state.ACTION_STATE_REALM_INFO){
+				if(input.readBoolean()){
+					const realmName = auth.state.waitingForRealmInfo;
+					let realm = undefined;
+					for(let index = 0; index < Game.realms.length; index++){
+						if(Game.realms[index].name === realmName){
+							realm = Game.realms[index];
+							break;
+						}
+					}
+					realm.online = input.readBoolean();
+					realm.onlinePlayers = input.readInt();
+					realm.maxOnlinePlayers = input.readInt();
+					realm.totalPlayers = input.readInt();
+					realm.createdAt = input.readJavaString();
+					Game.menus.realm.overview.setSelected(realm);
+				}
+				else {
+					window.alert('The realm no longer exists');
+				}
+			}
+			else {
+				weirdServerResponse();
+			}
+		}
+	};
+	auth.listener = new DomainBitProtocol(auth.code.StC.AMOUNT, auth.code.StC.BITCOUNT);
+	auth.listener.register(auth.code.StC.LOGIN_1, protocolLogin1);
+	auth.listener.register(auth.code.StC.LOGIN_1_FAILED, protocolLoginFail1);
+	auth.listener.register(auth.code.StC.LOGIN_2, protocolLogin2);
+	auth.listener.register(auth.code.StC.LOGIN_2_FAILED, protocolLoginFail2);
+	auth.listener.register(auth.code.StC.REGISTER, protocolRegister);
+	auth.listener.register(auth.code.StC.REGISTER_FAILED, protocolRegisterFailed);
+	auth.listener.register(auth.code.StC.PROFILE_LOGIN, protocolProfileLogin);
+	auth.listener.register(auth.code.StC.PROFILE_LOGIN_FAILED, protocolProfileLoginFailed);
+	auth.listener.register(auth.code.StC.REALM_LIST, protocolRealmList);
+	auth.listener.register(auth.code.StC.ACCOUNT_DATA, protocolAccountData);
+	auth.listener.register(auth.code.StC.REALM_INFO, protocolRealmInfo);
+}());
+
+//source from file connection/protocol/auth/Speaker.js
+(function(){
+	const auth = Game.connectionManager.auth;
+	auth.speaker = {
+		login1 : function(username, password){
+			if(auth.state.state === auth.state.STATE_DEFAULT){
+				auth.startConnection();
+				const output = auth.connection.createOutput();
+				output.writeNumber(auth.code.CtS.LOGIN_1, auth.code.CtS.BITCOUNT, false);
+				output.writeJavaString(username);
+				auth.state.password = password;
+				auth.state.state = auth.state.STATE_LOGIN_1;
+				output.terminate();
+			}
+			else {
+				Game.menus.loginMenu.setLoginError("You can't login while you are authenticating or logged in.");
+			}
+		},
+		login2 : function(salt, tempHasher){
+			if(auth.state.state === auth.state.STATE_LOGIN_1){
+				const password = auth.state.password;
+				const clientHashResult = Hasher.clientHash(password, salt);
+				const tempHashResult = Hasher.tempHash(clientHashResult.hashResult, tempHasher[0], tempHasher[1], tempHasher[2], tempHasher[3]);
+				
+				const output = auth.connection.createOutput();
+				output.writeNumber(auth.code.CtS.LOGIN_2, auth.code.CtS.BITCOUNT, false);
+				output.writeInts(tempHashResult.result);
+				output.writeInts(clientHashResult.encryptor);
+				auth.state.state = auth.state.STATE_LOGIN_2;
+				auth.state.password = undefined;
+				output.terminate();
+			}
+			else {
+				window.alert("Calling login2 shouldn't be possible...");
+			}
+		},
+		register : function(username, password){
+			if(auth.state.state === auth.state.STATE_DEFAULT){
+				auth.startConnection();
+				const salt = username + new Date().getTime();
+				const clientHashResult = Hasher.clientHash(password, salt);
+				const encryptedHashResult = Hasher.encrypt(clientHashResult.hashResult, clientHashResult.encryptor);
+				
+				const output = auth.connection.createOutput();
+				output.writeNumber(auth.code.CtS.REGISTER, auth.code.CtS.BITCOUNT, false);
+				output.writeJavaString(username);
+				output.writeJavaString(salt);
+				output.writeInts(encryptedHashResult.result);
+				auth.state.state = auth.state.STATE_REGISTER;
+				output.terminate();
+			}
+			else {
+				Game.menus.registerMenu.setRegisterError("You can't register while you are authenticating or logged in.");
+			}
+		},
+		profileLogin : function(){
+			if(auth.state.state === auth.state.STATE_LOGGED_IN){
+				if(auth.state.actionState === auth.state.ACTION_STATE_NOTHING){
+					const output = auth.connection.createOutput();
+					output.writeNumber(auth.code.CtS.PROFILE, auth.code.CtS.BITCOUNT, false);
+					auth.state.actionState = auth.state.ACTION_STATE_PROFILE_LOGIN;
+					output.terminate();
+				}
+				else {
+					window.alert('You can only perform 1 request at a time');
+				}
+			}
+			else {
+				window.alert("You need to authenticate first");
+			}
+		},
+		realmList : function(){
+			if(auth.state.state === auth.state.STATE_LOGGED_IN){
+				if(auth.state.actionState === auth.state.ACTION_STATE_NOTHING){
+					const output = auth.connection.createOutput();
+					output.writeNumber(auth.code.CtS.REALM_LIST, auth.code.CtS.BITCOUNT, false);
+					auth.state.actionState = auth.state.ACTION_STATE_REALM_LIST;
+					output.terminate();
+				}
+				else {
+					window.alert('You can only perform 1 request at a time');
+				}
+			}
+			else {
+				window.alert("You need to authenticate first");
+			}
+		},
+		accountData : function(){
+			if(auth.state.state === auth.state.STATE_LOGGED_IN){
+				if(auth.state.actionState === auth.state.ACTION_STATE_NOTHING){
+					const output = auth.connection.createOutput();
+					output.writeNumber(auth.code.CtS.ACCOUNT_DATA, auth.code.CtS.BITCOUNT, false);
+					auth.state.actionState = auth.state.ACTION_STATE_ACCOUNT_DATA;
+					output.terminate();
+				}
+				else {
+					window.alert('You can only perform 1 request at a time');
+				}
+			}
+			else {
+				window.alert("You need to authenticate first");
+			}
+		},
+		realmInfo : function(realmName){
+			if(auth.state.state === auth.state.STATE_LOGGED_IN){
+				if(auth.state.actionState === auth.state.ACTION_STATE_NOTHING){
+					const output = auth.connection.createOutput();
+					output.writeNumber(auth.code.CtS.REALM_INFO, auth.code.CtS.BITCOUNT, false);
+					output.writeJavaString(realmName);
+					auth.state.actionState = auth.state.ACTION_STATE_REALM_INFO;
+					auth.state.waitingForRealmInfo = realmName;
+					output.terminate();
+				}
+				else {
+					window.alert('You can only perform 1 request at a time');
+				}
+			}
+			else {
+				window.alert("You need to authenticate first");
+			}
+		}
+	};
+}());
+
+//source from file connection/protocol/profile/Code.js
+Game.connectionManager.profile.code = {
+	CtS : {
+		LOGIN : 0,
+		MODEL_LIST : 1,
+		GET_MODEL : 2,
+		ADD_MODEL : 3,
+		CHANGE_MODEL : 4,
+		
+		AMOUNT : 5,
+		BITCOUNT : 3
+	},
+	StC : {
+		LOGIN : 0,
+		GET_MODEL_LIST : 1,
+		GET_MODEL : 2,
+		ADDED_MODEL : 3,
+		CHANGED_MODEL : 4,
+		
+		AMOUNT : 5,
+		BITCOUNT : 3,
+
+		modelEncoding : {
+			ENCODING_1 : 0
+		}
+	}
+};
+
+//source from file connection/protocol/profile/Speaker.js
+(function(){
+	const profile = Game.connectionManager.profile;
+	profile.speaker = {
+		login : function(){
+			if(profile.state.state === profile.state.STATE_DEFAULT){
+				const output = profile.connection.createOutput();
+				output.writeNumber(profile.code.CtS.LOGIN, profile.code.CtS.BITCOUNT, false);
+				output.writeInts(profile.state.authKey);
+				output.terminate();
+				profile.state.state = profile.state.STATE_LOGGING_IN;
+			}
+			else {
+				window.alert("You can't log in now");
+			}
+		},
+		requestModels : function(){
+			if(profile.state.state === profile.state.STATE_DEFAULT){
+				profile.startConnection();
+			}
+			else if(profile.state.canRequest()){
+				const output = profile.connection.createOutput();
+				output.writeNumber(profile.code.CtS.GET_MODEL_LIST, profile.code.CtS.BITCOUNT, false);
+				profile.state.state = profile.state.STATE_GETTING_MODELS;
+				output.terminate();
+			}
+			else {
+				window.alert("You can't request the models right now");
+			}
+		},
+		requestModel : function(name){
+			if(profile.state.canRequest()){
+				const output = profile.connection.createOutput();
+				output.writeNumber(profile.code.CtS.GET_MODEL, profile.code.CtS.BITCOUNT, false);
+				output.writeJavaString(name);
+				profile.state.state = profile.state.STATE_GETTING_MODEL;
+				profile.state.waitingModelName = name;
+				output.terminate();
+			}
+			else {
+				window.alert("You can't request a model right now");
+			}
+		}
+	};
+}());
+
+//source from file connection/protocol/profile/Listener.js
+(function(){
+	const profile = Game.connectionManager.profile;
+	const protocolLogin = {
+		process : function(input){
+			if(profile.state.state === profile.state.STATE_LOGGING_IN){
+				profile.state.state = profile.state.STATE_LOGGED_IN;
+				Game.menus.main.afterAuth.setActiveTab(Game.menus.profile.overview);
+			}
+			else {
+				weirdProfileServerResponse();
+			}
+		}
+	};
+	const protocolGetModelList = {
+		process : function(input){
+			if(profile.state.state === profile.state.STATE_GETTING_MODELS){
+				const amount = input.readChar();
+				const maxSlots = input.readChar();
+				const models = new Array(amount);
+				for(let index = 0; index < amount; index++){
+					models[index] = input.readJavaString();
+				}
+				Game.profile.serverModelNames = models;
+				Game.profile.maxModelSlots = maxSlots;
+				Game.menus.profile.overview.setActiveTab(Game.menus.profile.models.overview);
+				profile.state.state = profile.state.STATE_LOGGED_IN;
+			}
+			else {
+				weirdProfileServerResponse();
+			}
+		}
+	};
+	const protocolGetModel = {
+		process : function(input){
+			if(profile.state.state === profile.state.STATE_GETTING_MODEL){
+				const profileModel = loadProfileEntityModel(input);
+				Game.profile.models[profile.state.waitingModelName] = profileModel;
+				Game.menus.profile.models.overview.setSelected(profileModel);
+				profile.state.waitingModelName = undefined;
+				profile.state.state = profile.state.STATE_LOGGED_IN;
+			}
+			else {
+				weirdProfileServerResponse();
+			}
+		}
+	};
+	const protocolAddedModel = {
+		process : function(input){
+			if(profile.state.state === profile.state.STATE_ADDING_MODEL){
+				profile.state.state = profile.state.STATE_LOGGED_IN;
+				window.alert('The model has been added to your models');
+			}
+			else {
+				weirdProfileServerResponse();
+			}
+		}
+	};
+	const protocolChangedModel = {
+		process : function(input){
+			if(profile.state.state === profile.state.STATE_CHANGING_MODEL){
+				profile.state.state = profile.state.STATE_LOGGED_IN;
+				window.alert('The model has been saved');
+			}
+			else {
+				weirdProfileServerResponse();
+			}
+		}
+	};
+	profile.listener = new DomainBitProtocol(profile.code.StC.AMOUNT, profile.code.StC.BITCOUNT);
+	profile.listener.register(profile.code.StC.LOGIN, protocolLogin);
+	profile.listener.register(profile.code.StC.GET_MODEL_LIST, protocolGetModelList);
+	profile.listener.register(profile.code.StC.GET_MODEL, protocolGetModel);
+	profile.listener.register(profile.code.StC.ADDED_MODEL, protocolAddedModel);
+	profile.listener.register(profile.code.StC.CHANGED_MODEL, protocolChangedModel);
+}());
+</script>
+</body>
+</html>

@@ -8,10 +8,10 @@ Game.menus.profile.models.selected = new Gui.Menu('rgb(0,150,250)', new function
 	this.deleteButton = new Gui.TextComponent('Delete', TextProperties.button(), TextProperties.hoverButton(), function(){
 		const model = Game.menus.profile.models.selected.model;
 		if(model.isLocal){//model is stored in localStorage
-
+			window.alert('Delete this local model');
 		}
 		else {//model is stored on the server
-
+			window.alert('Delete this server model');
 		}
 	})
 	this.setSelected = function(profileModel){

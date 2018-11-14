@@ -1,4 +1,5 @@
 Game.menuComponents.profile.models.localList = new Gui.Menu('rgb(0,150,120)', function(){
+	loadLocalProfileEntityModels();
 	const modelNames = Game.profile.localModelNames;
 	for(let index = 0; index < modelNames.length; index++){
 		this.addComponent(new LocalProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);

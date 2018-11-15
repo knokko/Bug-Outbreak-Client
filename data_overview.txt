@@ -1,0 +1,138 @@
+Game : {
+	connectionManager : {
+		auth : {
+			state : {
+				password : string
+				waitingForRealmInfo : boolean
+				op : boolean
+				state : number
+				actionState : number
+			}
+			connection : WebClient.Connection
+			startConnection : function()
+			closeConnection : function()
+			code : {
+				CtS : {
+					LOGIN_1 : number
+					LOGIN_2 : number
+					REGISTER : number
+					REALM_LIST : number
+					ACCOUNT_DATA : number
+					PROFILE : number
+					REALM_INFO : number
+					BITCOUNT : number
+					AMOUNT : number
+				}
+				StC: {
+					LOGIN_1 : number
+					LOGIN_1_FAILED : number
+					LOGIN_2 : number
+					LOGIN_2_FAILED : number
+					REGISTER : number
+					REGISTER_FAILED : number
+					REALM_LIST : number
+					ACCOUNT_DATA : number
+					PROFILE_LOGIN : number
+					PROFILE_LOGIN_FAILED : number
+					REALM_INFO : number
+					BITCOUNT : number
+					AMOUNT : number
+					LoginFail1 : {
+						NO_USERNAME : number
+						ALREADY_LOGGED_IN : number
+						UNDER_ATTACK : number
+						BITCOUNT : number
+					}
+					LoginFail2 : {
+						WRONG_PASSWORD : number
+						ALREADY_LOGGED_IN : number
+						BITCOUNT : number
+					}
+					RegisterFail : {
+						NAME_IN_USE : number
+						IP_LIMIT_EXCEEDED : number
+						BITCOUNT : number
+					}
+					ProfileFail : {
+						SERVER_DOWN : number
+						ADDRESS_UNKNOWN : number
+						BITCOUNT : number
+					}
+				}
+			}
+			listener : DomainBitProtocol
+			speaker : {
+				login1 : function(string username, string password)
+				login2 : function(string salt, number[4] tempHasher)
+				register : function(string username, string password)
+				profileLogin : function()
+				realmList : function()
+				accountData : function()
+				realmInfo : function(string realmName)
+			}
+		}
+		profile : {
+			state : {
+				state : number
+				op : boolean
+				waitingModelName : string
+				canRequest : function()
+			}
+			connection : WebClient.connection
+			startConnection : function(number[8] authKey, Int8Array[] address, number port)
+			closeConnection : function()
+			code : {
+				CtS : {
+					LOGIN : number
+					MODEL_LIST : number
+					GET_MODEL : number
+					ADD_MODEL : number
+					CHANGE_MODEL : number
+					AMOUNT : number
+					BITCOUNT : number
+				}
+				StC : {
+					LOGIN : number
+					GET_MODEL_LIST : number
+					GET_MODEL : number
+					ADDED_MODEL : number
+					CHANGED_MODEL : number
+					AMOUNT : number
+					BITCOUNT : number
+					modelEncoding : {
+						ENCODING_1 : number
+					}
+				}
+			}
+			listener : DomainBitProtocol
+			speaker : {
+				login : function()
+				requestModels : function()
+				requestModel : function(string modelName)
+			}
+		}
+	}
+	guiManager : Gui.Manager
+	profile : {
+		serverModelNames : string[]
+		maxModelSlots : number
+		models : {
+			... : {
+				model : {
+					skeleton : {
+
+					}
+					texture : {
+
+					}
+					model : {
+					
+					}
+				}
+				name : string
+				createdAt : string
+				lastModified : string
+			}
+		}
+	}
+}

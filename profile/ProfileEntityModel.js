@@ -3,6 +3,7 @@ function ProfileEntityModel(model, name, createdAt, lastModified){
 	this.name = name;
 	this.createdAt = createdAt;
 	this.lastModified = lastModified;
+	this.isLocal = false;
 }
 
 function loadProfileEntityModel(input){

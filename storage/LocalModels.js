@@ -17,7 +17,7 @@ function loadLocalProfileEntityModels(){
 function loadLocalProfileEntityModel(name){
 	const input = createLocalStorageInput('profileEntityModel' + name);
 	if(input){
-		const model= loadProfileEntityModel(input);
+		const model = loadProfileEntityModel(input);
 		model.isLocal = true;
 		return model;
 	}

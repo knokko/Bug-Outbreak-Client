@@ -79,7 +79,7 @@ Game : {
 				canRequest : function()
 			}
 			connection : WebClient.connection
-			startConnection : function(number[8] authKey, Int8Array[] address, number port)
+			startConnection : function(number[8] authKey, Int8Array address, number port)
 			closeConnection : function()
 			code : {
 				CtS : {
@@ -116,23 +116,56 @@ Game : {
 	profile : {
 		serverModelNames : string[]
 		maxModelSlots : number
-		models : {
-			... : {
-				model : {
-					skeleton : {
+		models : ProfileEntityModel['']
+	}
+	models : {
+		loadModel : function(BitHelper.BitInput input)
+	}
+}
 
-					}
-					texture : {
-
-					}
-					model : {
-					
-					}
-				}
-				name : string
-				createdAt : string
-				lastModified : string
-			}
-		}
+classes : {
+	<Animation> : abstract {
+		getX : function(state)
+		getY : function(state)
+		getZ : function(state)
+		getPitch : function(state)
+		getYaw : function(state)
+		getRoll : function(state)
+		clone : function()
+	}
+	Gui3D.Skeleton : {
+		parts : Gui3D.Skeletonpart[]
+		setState : function(state)
+	}
+	Gui3D.SkeletonPart : {
+		parentIndex : number
+		x : number
+		y : number
+		z : number
+		pitch : number
+		yaw : number
+		roll : number
+		animation : <Animation>
+		matrix : Matrices.Matrix4
+		clone : function()
+		setState : function(state, Gui3D.Skeleton skeleton)
+	}
+	Gui3D.Model : {
+		model : Gui3D.RawModel
+		texture : Gui.Texture
+		skeleton : Gui3D.Skeleton
+	}
+	Gui3D.RawModel : {
+		positions : Int32Array
+		textureCoords : UInt16Array
+		matrices : Int8Array
+		indices : Int32Array
+	}
+	ProfileEntityModel : {
+		model : Gui3D.Model
+		name : string
+		createdAt : string
+		lastModified : string
+		isLocal : boolean
 	}
 }

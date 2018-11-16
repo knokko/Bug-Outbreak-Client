@@ -1,9 +1,33 @@
 Game.models = {
+	saveModelBuilder : function(modelBuilder, output){
+		// First, do loading, then work on saving
+	},
 	loadModel : function(input){
-		const skeleton = new Gui3D.Skeleton();
-		const texture = new Gui.Texture();
-		const model = new Gui3D.RawModel();
+		const skeleton = this.loadSkeleton(input);
+		const texture = this.loadTexture(input);
+		const model = this.loadRawModel(input);
 		return new Gui3D.Model(model, texture, skeleton);
+	},
+	loadTexture : function(input){
+		const encoding = input.readByte();
+		if (encoding === this.textureEncoding.CCB_RGB){
+			return this.loadTextureCCB_RGB(input);
+		} else {
+			throw 'Unknown texture encoding: ' + encoding;
+		}
+	},
+	loadTextureCCB_RGB : function(input){
+		const width = input.readChar();
+		const height = input.readChar();
+		const texture = new Gui.Texture(width, height);
+		const size = width * height;
+		for (let index = 0; index < size; index++){
+			texture.data[index * 4] = input.readByte() & 0xFF;
+			texture.data[index * 4 + 1] = input.readByte() & 0xFF;
+			texture.data[index * 4 + 2] = input.readByte() & 0xFF;
+			texture.data[index * 4] = 255;
+		}
+		return texture;
 	},
 	loadSkeleton : function(input){
 		const encoding = input.readByte();
@@ -39,6 +63,9 @@ Game.models = {
 		} else {
 			throw 'Unknown animation encoding: ' + type;
 		}
+	},
+	textureEncoding : {
+		CCB_RGB : -128
 	},
 	skeletonEncoding : {
 		PART_LIST_1 : -128

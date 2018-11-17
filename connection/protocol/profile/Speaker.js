@@ -14,12 +14,9 @@
 			}
 		},
 		requestModels : function(){
-			if(profile.state.state === profile.state.STATE_DEFAULT){
-				profile.startConnection();
-			}
-			else if(profile.state.canRequest()){
+			if(profile.state.canRequest()){
 				const output = profile.connection.createOutput();
-				output.writeNumber(profile.code.CtS.GET_MODEL_LIST, profile.code.CtS.BITCOUNT, false);
+				output.writeNumber(profile.code.CtS.MODEL_LIST, profile.code.CtS.BITCOUNT, false);
 				profile.state.state = profile.state.STATE_GETTING_MODELS;
 				output.terminate();
 			}

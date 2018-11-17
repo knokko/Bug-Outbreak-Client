@@ -62,7 +62,7 @@ Game.connectionManager = {
 			op : false,
 			waitingModelName : undefined,
 			canRequest : function(){
-				return this.state === this.state.STATE_LOGGED_IN || this.state === this.state.STATE_GETTING_MODEL;
+				return this.state === this.STATE_LOGGED_IN || this.state === this.STATE_GETTING_MODEL;
 			}
 		},
 		startConnection : function(authKey, address, port){

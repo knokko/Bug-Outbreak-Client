@@ -3608,6 +3608,184 @@ function weirdProfileServerResponse(){
 	window.alert('The profile server is acting weird, this can be a bug, a connection problem or a corrupt server');
 }
 
+//source from file Models.js
+Game.models = {
+	saveModelBuilder : function(modelBuilder, output){
+
+		// Save the Skeleton
+		output.writeByte(this.skeletonEncoding.PART_LIST_1);
+		let length = modelBuilder.parts.length;
+		output.writeByte(length - 1);
+		for (let index = 0; index < length; index++){
+			const part = modelBuilder.parts[index];
+			output.writeByte(part.parentIndex);
+			output.writeInt(part.x);
+			output.writeInt(part.y);
+			output.writeInt(part.z);
+			output.writeInt(part.pitch);
+			output.writeInt(part.yaw);
+			output.writeInt(part.roll);
+			if (part.animation instanceof Gui3D.NoAnimation){
+				output.writeByte(this.animationEncoding.NONE);
+			} else {
+				part.animation.save(output);
+			}
+		}
+
+		// Save the Texture
+		output.writeByte(this.textureEncoding.CCB_RGB);
+		output.writeChar(modelBuilder.texture.width);
+		output.writeChar(modelBuilder.texture.height);
+		const size = modelBuilder.texture.width * modelBuilder.texture.height;
+		const textureData = modelBuilder.texture.data;
+		for (let index = 0; index < size; index++) {
+			output.writeByte(BitHelper.javaByteCast(textureData[index * 4]));
+			output.writeByte(BitHelper.javaByteCast(textureData[index * 4 + 1]));
+			output.writeByte(BitHelper.javaByteCast(textureData[index * 4 + 2]));
+		}
+
+		// Save the RawModel
+		output.writeByte(this.modelEncoding.IICB);
+		const positions = modelBuilder.positions;
+		const textureCoords = modelBuilder.textureCoords;
+		const matrices = modelBuilder.matrices;
+		const indices = modelBuilder.indices;
+		output.writeInt(matrices.length);
+		length = positions.length;
+		for (let index = 0; index < length; index++){
+			output.writeInt(positions[index]);
+		}
+		length = textureCoords.length;
+		for (let index = 0; index < length; index++) {
+			output.writeChar(textureCoords[index]);
+		}
+		length = matrices.length;
+		for (let index = 0; index < length; index++) {
+			output.writeByte(matrices[index]);
+		}
+		length = indices.length;
+		output.writeInt(length / 3);
+		for (let index = 0; index < length; index++) {
+			output.writeChar(indices[index]);
+		}
+	},
+	loadModel : function(input){
+		const skeleton = this.loadSkeleton(input);
+		const texture = this.loadTexture(input);
+		const model = this.loadRawModel(input);
+		return new Gui3D.Model(model, texture, skeleton);
+	},
+	loadTexture : function(input){
+		const encoding = input.readByte();
+		if (encoding === this.textureEncoding.CCB_RGB){
+			return this.loadTextureCCB_RGB(input);
+		} else {
+			throw 'Unknown texture encoding: ' + encoding;
+		}
+	},
+	loadTextureCCB_RGB : function(input){
+		const width = input.readChar();
+		const height = input.readChar();
+		const texture = new Gui.Texture(width, height);
+		const size = width * height;
+		for (let index = 0; index < size; index++){
+			texture.data[index * 4] = input.readByte() & 0xFF;
+			texture.data[index * 4 + 1] = input.readByte() & 0xFF;
+			texture.data[index * 4 + 2] = input.readByte() & 0xFF;
+			texture.data[index * 4] = 255;
+		}
+		return texture;
+	},
+	loadRawModel : function(input){
+		const encoding = input.readByte();
+		if (encoding === this.modelEncoding.IICB){
+			return this.loadRawModelIICB(input);
+		} else {
+			throw 'Unkown raw model encoding: ' + encoding;
+		}
+	},
+	loadRawModelIICB : function(input){
+		const vertexCount = input.readInt();
+		const positions = new Int32Array(vertexCount * 3);
+		const textureCoords = new Uint16Array(vertexCount * 2);
+		const matrices = new Int8Array(vertexCount);
+		let length = positions.length;
+		for (let index = 0; index < length; index++) {
+			positions[index] = input.readInt();
+		}
+		length = textureCoords.length;
+		for (let index = 0; index < length; index++) {
+			textureCoords[index] = input.readChar();
+		}
+		for (let index = 0; index < vertexCount; index++) {
+			matrices[index] = input.readByte();
+		}
+		const triangleCount = input.readInt();
+		const indices = new Uint16Array(triangleCount * 3);
+		length = indices.length;
+		for (let index = 0; index < length; index++) {
+			indices[index] = input.readChar();
+		}
+		return new Gui3D.RawModel(positions, textureCoords, matrices, indices);
+	},
+	loadSkeleton : function(input){
+		const encoding = input.readByte();
+		if (encoding === this.skeletonEncoding.PART_LIST_1){
+			return this.loadSkeletonPartList1(input);
+		} else {
+			throw 'Unknown skeleton encoding: ' + encoding;
+		}
+	},
+	loadSkeletonPartList1 : function(input){
+		const partLength = input.readByte() + 1;
+		const parts = new Array(partLength);
+		for (let index = 0; index < partLength; index++){
+			parts[index] = this.loadSkeletonPart1(input);
+		}
+		return new Gui3D.Skeleton(input);
+	},
+	loadSkeletonPart1 : function(input){
+		const parentIndex = input.readByte();
+		const x = input.readInt();
+		const y = input.readInt();
+		const z = input.readInt();
+		const pitch = input.readInt();
+		const yaw = input.readInt();
+		const roll = input.readInt();
+		const animation = this.loadSkeletonPartAnimation(input);
+		return new Gui3D.SkeletonPart(parentIndex, x, y, z, pitch, yaw, roll, animation);
+	},
+	loadSkeletonPartAnimation : function(input){
+		const type = input.readByte();
+		if (type === this.animationEncoding.NONE){
+			return new Gui3D.NoAnimation();
+		} else {
+			throw 'Unknown animation encoding: ' + type;
+		}
+	},
+	modelEncoding : {
+		IICB : -128
+	},
+	textureEncoding : {
+		CCB_RGB : -128
+	},
+	skeletonEncoding : {
+		PART_LIST_1 : -128
+	},
+	animationEncoding : {
+		NONE : 0,
+		MOVING_PITCH : 1,
+		MOVING_YAW : 2,
+		MOVING_ROLL : 3,
+		ATTACK_PITCH : 4,
+		ATTACK_YAW : 5,
+		ATTACK_ROLL : 6,
+		RANDOM_PITCH : 7,
+		RANDOM_YAW : 8,
+		RANDOM_ROLL : 9
+	}
+}
+
 
 //source from file storage/LocalModels.js
 function loadLocalProfileEntityModels(){
@@ -3629,7 +3807,7 @@ function loadLocalProfileEntityModels(){
 function loadLocalProfileEntityModel(name){
 	const input = createLocalStorageInput('profileEntityModel' + name);
 	if(input){
-		const model= loadProfileEntityModel(input);
+		const model = loadProfileEntityModel(input);
 		model.isLocal = true;
 		return model;
 	}
@@ -3645,6 +3823,7 @@ function ProfileEntityModel(model, name, createdAt, lastModified){
 	this.name = name;
 	this.createdAt = createdAt;
 	this.lastModified = lastModified;
+	this.isLocal = false;
 }
 
 function loadProfileEntityModel(input){
@@ -3660,97 +3839,6 @@ function loadProfileEntityModel(input){
 function loadProfileEntityModel1(input){
 	return new ProfileEntityModel(new EntityModel(input), input.readJavaString(), input.readJavaString(), input.readJavaString());
 }
-
-//source from file world/entity/model/EntityModel.js
-function EntityModel(input){
-	this.skeleton = new EntitySkeleton(input);
-	this.texture = new EntityTexture(input);
-	this.model = new RawEntityModel(input);
-}
-
-EntityModel.prototype.save = function(output){
-	this.skeleton.save(output);
-	this.texture.save(output);
-	this.model.save(output);
-};
-
-//source from file world/entity/model/EntityTexture.js
-
-//source from file world/entity/model/RawEntityModel.js
-
-//source from file world/entity/model/skeleton/Skeleton.js
-const ENTITY_SKELETON_ENCODING_PART_LIST_1 = -128;
-
-function EntitySkeleton(input){
-	const encoding = input.readByte();
-	if(encoding === ENTITY_SKELETON_ENCODING_PART_LIST_1){
-		this.loadPartList1(input);
-	}
-	else {
-		throw 'Unknown encoding: ' + encoding;
-	}
-}
-
-EntitySkeleton.prototype.loadPartList1 = function(input){
-	const partLength = input.readByte() + 1;
-	this.parts = new Array(partLength);
-	for(let index = 0; index < partLength; index++){
-		this.parts[index] = loadEntitySkeletonPart1(input);
-	}
-}
-
-//source from file world/entity/model/skeleton/Part.js
-function loadEntitySkeletonPart1(input){
-	return new EntitySkeletonPart(input.readByte(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), input.readInt(), createEntitySkeletonPartAnimation(input));
-}
-
-function EntitySkeletonPart(parentIndex, x, y, z, pitch, yaw, roll, animation){
-	this.parentIndex = parentIndex;
-	this.x = x;
-	this.y = y;
-	this.z = z;
-	this.pitch = pitch;
-	this.yaw = yaw;
-	this.roll = roll;
-	this.animation = animation;
-}
-
-EntitySkeletonPart.prototype.save1 = function(output){
-	output.writeByte(this.parentIndex);
-	output.writeInt(this.x);
-	output.writeInt(this.y);
-	output.writeInt(this.z);
-	output.writeInt(this.pitch);
-	output.writeInt(this.yaw);
-	output.writeInt(this.roll);
-	this.animation.save1(output);
-}
-
-//source from file world/entity/model/skeleton/animation/Animations.js
-function createEntitySkeletonPartAnimation(input){
-	const ordinal = input.readByte();
-	if(ordinal === EntitySkeletonAnimationNone.prototype.ordinal){
-		return new EntitySkeletonAnimationNone();
-	}
-	throw 'Unknown animation ordinal: ' + ordinal;
-}
-
-//source from file world/entity/model/skeleton/animation/AnimationNone.js
-function EntitySkeletonAnimationNone(){}
-
-EntitySkeletonAnimationNone.prototype.getExtraPitch = function(moveProgress, attackProgress){
-	return 0;
-};
-
-EntitySkeletonAnimationNone.prototype.getExtraYaw = function(moveProgress, attackProgress){
-	return 0;
-};
-
-EntitySkeletonAnimationNone.prototype.getExtraRoll = function(moveProgress, attackProgress){
-	return 0;
-};
-
-EntitySkeletonAnimationNone.prototype.ordinal = 0;
 
 
 //source from file gui/TextProperties.js
@@ -3894,7 +3982,8 @@ const TextProperties = {
 
 
 //source from file gui/component/profile/models/LocalList.js
-Game.menuComponents.profile.models.localList = new Gui.Menu('rgb(0,150,120)', function(){
+Game.menuComponents.profile.models.localList = new Gui.Menu('rgb(70,150,120)', function(){
+	loadLocalProfileEntityModels();
 	const modelNames = Game.profile.localModelNames;
 	for(let index = 0; index < modelNames.length; index++){
 		this.addComponent(new LocalProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);
@@ -3925,7 +4014,7 @@ LocalProfileModelListComponent.prototype.hoverProps = TextProperties.listElement
 LocalProfileModelListComponent.prototype.activeProps = TextProperties.listElement('rgb(100,100,255)', 'rgb(0,0,255)');
 
 //source from file gui/component/profile/models/ServerList.js
-Game.menuComponents.profile.models.serverList = new Gui.Menu('rgb(0,150,120)', function(){
+Game.menuComponents.profile.models.serverList = new Gui.Menu('rgb(70,150,120)', function(){
 	const modelNames = Game.profile.serverModelNames;
 	for(let index = 0; index < modelNames.length; index++){
 		this.addComponent(new ProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);
@@ -3955,7 +4044,7 @@ ProfileModelListComponent.prototype.hoverProps = TextProperties.listElement('rgb
 ProfileModelListComponent.prototype.activeProps = TextProperties.listElement('rgb(100,100,255)', 'rgb(0,0,255)');
 
 //source from file gui/component/profile/models/Selected.js
-Game.menus.profile.models.selected = new Gui.Menu('rgb(0,150,250)', new function(){
+Game.menuComponents.profile.models.selected = new Gui.Menu('rgb(0,150,250)', function(){
 	this.editButton = new Gui.TextComponent('Edit', TextProperties.button('rgb(0,200,0)', 'rgb(0,50,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,80,0)'), function(){
 		window.alert('Edit model ' + this.model.name);
 	});
@@ -3974,6 +4063,10 @@ Game.menus.profile.models.selected = new Gui.Menu('rgb(0,150,250)', new function
 	this.setSelected = function(profileModel){
 		this.model = profileModel;
 		this.components = [];
+		this.addComponent(this.editButton, 0.2, 0.65, 0.8, 0.8);
+		this.addComponent(this.viewButton, 0.2, 0.5, 0.8, 0.6);
+		this.addComponent(this.deleteButton, 0.2, 0.2, 0.8, 0.3);
+		this.addComponent(new Gui.TextComponent(this.model.name, TextProperties.label()), 0.05, 0.85, 0.95, 0.95);
 	};
 });
 
@@ -4060,16 +4153,22 @@ Game.menus.main.afterAuth = new Gui.Menu('rgb(0, 150, 120)', function(){
 	this.addComponent(new Gui.BackgroundComponent('rgb(120,150,120)'), 0, 0.95, 1, 1);
 	this.addComponent(new Gui.ActivatableTextComponent('Play', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
 		Game.connectionManager.auth.speaker.realmList();
+		// Here, I ask a new realm list intentionally to force an update
 	}, function(){
 		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.realm.select.overview;
 	}), 0, 0.95, 0.1, 1);
 	this.addComponent(new Gui.ActivatableTextComponent('Profile', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
-		Game.connectionManager.auth.speaker.profileLogin();
+		if (Game.connectionManager.profile.state.state === Game.connectionManager.profile.state.STATE_LOGGED_IN) {
+			Game.menus.main.afterAuth.setActiveTab(Game.menus.profile.overview);
+		} else {
+			Game.connectionManager.auth.speaker.profileLogin();
+		}
 	}, function(){
 		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.profile.overview;
 	}), 0.11, 0.95, 0.21, 1);
 	this.addComponent(new Gui.ActivatableTextComponent('Account', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
 		Game.connectionManager.auth.speaker.accountData();
+		// Always refresh account data
 	}, function(){
 		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.account.overview;
 	}), 0.22, 0.95, 0.32, 1);
@@ -4175,15 +4274,15 @@ Game.menus.profile.overview = new Gui.Menu('rgb(0, 150, 120)', function(){
 
 //source from file gui/menu/profile/Models.js
 Game.menus.profile.models.overview = new Gui.Menu('rgb(0,150,120)', function(){
-	this.addComponent(new Gui.TextComponent('Character models', TextProperties.label()), 0.1, 0.8, 0.4, 0.95);
-	this.addComponent(Game.menuComponents.profile.models.serverList, 0.05, 0.3, 0.3, 0.7);
-	this.addComponent(Game.menuComponents.profile.models.localList, 0.325, 0.3, 0.575, 0.7);
+	this.addComponent(new Gui.TextComponent('Character models', TextProperties.label()), 0.1, 0.83, 0.4, 0.98);
+	this.addComponent(Game.menuComponents.profile.models.serverList, 0.05, 0.15, 0.3, 0.8);
+	this.addComponent(Game.menuComponents.profile.models.localList, 0.325, 0.15, 0.575, 0.8);
 	this.addComponent(Game.menuComponents.profile.models.selected, 0.6, 0.4, 0.95, 0.7);
 	this.addComponent(new Gui.ActivatableTextComponent('Create new', TextProperties.button('rgb(0,0,200)', 'rgb(0,0,50)'), TextProperties.button('rgb(0,0,255)', 'rgb(0,0,80)'), TextProperties.button('rgb(200,0,0)', 'rgb(50,0,0)'), function(){
 		window.alert('Create new model...');
 	}, function(){
-		return Game.profile.modelNames.length < Game.profile.maxModelSlots;
-	}), 0.1, 0.1, 0.3, 0.2);
+		return Game.profile.serverModelNames.length < Game.profile.maxModelSlots;
+	}), 0.1, 0.025, 0.3, 0.125);
 	this.setSelected = function(model){
 		Game.menuComponents.profile.models.selected.setSelected(model);
 		this.state.getManager().markDirty();
@@ -4506,7 +4605,7 @@ Game.connectionManager = {
 			op : false,
 			waitingModelName : undefined,
 			canRequest : function(){
-				return this.state === this.state.STATE_LOGGED_IN || this.state === this.state.STATE_GETTING_MODEL;
+				return this.state === this.STATE_LOGGED_IN || this.state === this.STATE_GETTING_MODEL;
 			}
 		},
 		startConnection : function(authKey, address, port){
@@ -4997,12 +5096,9 @@ Game.connectionManager.profile.code = {
 			}
 		},
 		requestModels : function(){
-			if(profile.state.state === profile.state.STATE_DEFAULT){
-				profile.startConnection();
-			}
-			else if(profile.state.canRequest()){
+			if(profile.state.canRequest()){
 				const output = profile.connection.createOutput();
-				output.writeNumber(profile.code.CtS.GET_MODEL_LIST, profile.code.CtS.BITCOUNT, false);
+				output.writeNumber(profile.code.CtS.MODEL_LIST, profile.code.CtS.BITCOUNT, false);
 				profile.state.state = profile.state.STATE_GETTING_MODELS;
 				output.terminate();
 			}

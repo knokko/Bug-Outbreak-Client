@@ -119,6 +119,7 @@ Game : {
 		models : ProfileEntityModel['']
 	}
 	models : {
+		saveModelBuilder : function(Gui3D.ModelBuilder modelBuilder, BitHelper.BitOutput output)
 		loadModel : function(BitHelper.BitInput input)
 	}
 }

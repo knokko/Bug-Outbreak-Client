@@ -7,16 +7,22 @@ Game.menus.main.afterAuth = new Gui.Menu('rgb(0, 150, 120)', function(){
 	this.addComponent(new Gui.BackgroundComponent('rgb(120,150,120)'), 0, 0.95, 1, 1);
 	this.addComponent(new Gui.ActivatableTextComponent('Play', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
 		Game.connectionManager.auth.speaker.realmList();
+		// Here, I ask a new realm list intentionally to force an update
 	}, function(){
 		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.realm.select.overview;
 	}), 0, 0.95, 0.1, 1);
 	this.addComponent(new Gui.ActivatableTextComponent('Profile', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
-		Game.connectionManager.auth.speaker.profileLogin();
+		if (Game.connectionManager.profile.state.state === Game.connectionManager.profile.state.STATE_LOGGED_IN) {
+			Game.menus.main.afterAuth.setActiveTab(Game.menus.profile.overview);
+		} else {
+			Game.connectionManager.auth.speaker.profileLogin();
+		}
 	}, function(){
 		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.profile.overview;
 	}), 0.11, 0.95, 0.21, 1);
 	this.addComponent(new Gui.ActivatableTextComponent('Account', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
 		Game.connectionManager.auth.speaker.accountData();
+		// Always refresh account data
 	}, function(){
 		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.account.overview;
 	}), 0.22, 0.95, 0.32, 1);

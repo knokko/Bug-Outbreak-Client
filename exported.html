@@ -3983,11 +3983,15 @@ const TextProperties = {
 
 //source from file gui/component/profile/models/LocalList.js
 Game.menuComponents.profile.models.localList = new Gui.Menu('rgb(70,150,120)', function(){
-	loadLocalProfileEntityModels();
-	const modelNames = Game.profile.localModelNames;
-	for(let index = 0; index < modelNames.length; index++){
-		this.addComponent(new LocalProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);
+	this.refresh = function(){
+		loadLocalProfileEntityModels();
+		const modelNames = Game.profile.localModelNames;
+		for(let index = 0; index < modelNames.length; index++){
+			this.addComponent(new LocalProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);
+		}
+		this.state.getManager().markDirty();
 	}
+	this.refresh();
 });
 
 function LocalProfileModelListComponent(modelName){
@@ -4015,10 +4019,14 @@ LocalProfileModelListComponent.prototype.activeProps = TextProperties.listElemen
 
 //source from file gui/component/profile/models/ServerList.js
 Game.menuComponents.profile.models.serverList = new Gui.Menu('rgb(70,150,120)', function(){
-	const modelNames = Game.profile.serverModelNames;
-	for(let index = 0; index < modelNames.length; index++){
-		this.addComponent(new ProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);
+	this.refresh = function(){
+		const modelNames = Game.profile.serverModelNames;
+		for(let index = 0; index < modelNames.length; index++){
+			this.addComponent(new ProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);
+		}
+		this.state.getManager().markDirty();
 	}
+	this.refresh();
 });
 
 function ProfileModelListComponent(modelName){
@@ -4063,10 +4071,12 @@ Game.menuComponents.profile.models.selected = new Gui.Menu('rgb(0,150,250)', fun
 	this.setSelected = function(profileModel){
 		this.model = profileModel;
 		this.components = [];
-		this.addComponent(this.editButton, 0.2, 0.65, 0.8, 0.8);
-		this.addComponent(this.viewButton, 0.2, 0.5, 0.8, 0.6);
-		this.addComponent(this.deleteButton, 0.2, 0.2, 0.8, 0.3);
-		this.addComponent(new Gui.TextComponent(this.model.name, TextProperties.label()), 0.05, 0.85, 0.95, 0.95);
+		if (profileModel) {
+			this.addComponent(this.editButton, 0.2, 0.65, 0.8, 0.8);
+			this.addComponent(this.viewButton, 0.2, 0.5, 0.8, 0.6);
+			this.addComponent(this.deleteButton, 0.2, 0.2, 0.8, 0.3);
+			this.addComponent(new Gui.TextComponent(this.model.name, TextProperties.label()), 0.05, 0.85, 0.95, 0.95);
+		}
 	};
 });
 
@@ -4279,7 +4289,18 @@ Game.menus.profile.models.overview = new Gui.Menu('rgb(0,150,120)', function(){
 	this.addComponent(Game.menuComponents.profile.models.localList, 0.325, 0.15, 0.575, 0.8);
 	this.addComponent(Game.menuComponents.profile.models.selected, 0.6, 0.4, 0.95, 0.7);
 	this.addComponent(new Gui.ActivatableTextComponent('Create new', TextProperties.button('rgb(0,0,200)', 'rgb(0,0,50)'), TextProperties.button('rgb(0,0,255)', 'rgb(0,0,80)'), TextProperties.button('rgb(200,0,0)', 'rgb(50,0,0)'), function(){
-		window.alert('Create new model...');
+		Game.guiManager.setMainComponent(new GuiModelEditor(undefined, new Gui3D.ModelBuilder(), undefined, function(){
+			// Note that this refers to the editor and then to the saveAs menu
+			this.setPopup(new Gui.Menu('rgb(100,0,150)', function(){
+				// TODO create the popup
+				this.addComponent();
+			}));
+		}, function(){
+			Game.guiManager.setMainComponent(Game.menus.main.afterAuth);
+			Game.menus.profile.models.localList.refresh();
+			Game.menus.profile.models.serverList.refresh();
+			Game.menus.profile.models.overview.setSelected(null);
+		}));
 	}, function(){
 		return Game.profile.serverModelNames.length < Game.profile.maxModelSlots;
 	}), 0.1, 0.025, 0.3, 0.125);
@@ -4450,7 +4471,12 @@ ModelEditorToolbars.createFile = function(editor){
 	const t = ModelEditorToolbars;
 	const toolbar = new Gui.Toolbar('File', t.upperProps, t.upperHoverProps, t.upperActiveProps, 0.05, 0.05, 0.25, 0.15, function(){
 		this.addComponent(new Gui.TextComponent('Save', t.props, t.hoverProps, function(x, y, button){
-			editor.save();
+			if (editor.name) {
+				editor.save();
+				editor.hasChanges = false;
+			} else {
+				editor.saveAs();
+			}
 		}), 0.05);
 		this.addComponent(new Gui.TextComponent('Save as', t.props, t.hoverProps, function(x, y, button){
 			editor.saveAs();
@@ -4488,6 +4514,7 @@ ModelEditorToolbars.createAdd = function(editor){
 			const look = cam.getLookVector();
 			editor.selected = new ModelEditorSelectedVertex(editor, editor.builder.addVertex(cam.getX() + look.getX(), cam.getY() + look.getY(), cam.getZ() + look.getZ(), 0, 0, 0));
 			editor.setViewMode(ModelViewMode.ABSTRACT);
+			editor.hasChanges = true;
 		}));
 	});
 };

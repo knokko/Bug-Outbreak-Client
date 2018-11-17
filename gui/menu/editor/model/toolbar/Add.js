@@ -6,6 +6,7 @@ ModelEditorToolbars.createAdd = function(editor){
 			const look = cam.getLookVector();
 			editor.selected = new ModelEditorSelectedVertex(editor, editor.builder.addVertex(cam.getX() + look.getX(), cam.getY() + look.getY(), cam.getZ() + look.getZ(), 0, 0, 0));
 			editor.setViewMode(ModelViewMode.ABSTRACT);
+			editor.hasChanges = true;
 		}));
 	});
 };

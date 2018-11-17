@@ -2,7 +2,12 @@ ModelEditorToolbars.createFile = function(editor){
 	const t = ModelEditorToolbars;
 	const toolbar = new Gui.Toolbar('File', t.upperProps, t.upperHoverProps, t.upperActiveProps, 0.05, 0.05, 0.25, 0.15, function(){
 		this.addComponent(new Gui.TextComponent('Save', t.props, t.hoverProps, function(x, y, button){
-			editor.save();
+			if (editor.name) {
+				editor.save();
+				editor.hasChanges = false;
+			} else {
+				editor.saveAs();
+			}
 		}), 0.05);
 		this.addComponent(new Gui.TextComponent('Save as', t.props, t.hoverProps, function(x, y, button){
 			editor.saveAs();

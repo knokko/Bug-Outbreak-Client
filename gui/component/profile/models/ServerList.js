@@ -1,8 +1,12 @@
 Game.menuComponents.profile.models.serverList = new Gui.Menu('rgb(70,150,120)', function(){
-	const modelNames = Game.profile.serverModelNames;
-	for(let index = 0; index < modelNames.length; index++){
-		this.addComponent(new ProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);
+	this.refresh = function(){
+		const modelNames = Game.profile.serverModelNames;
+		for(let index = 0; index < modelNames.length; index++){
+			this.addComponent(new ProfileModelListComponent(modelNames[index]), 0, 0.9 - index * 0.1, 1, 1 - index * 0.1);
+		}
+		this.state.getManager().markDirty();
 	}
+	this.refresh();
 });
 
 function ProfileModelListComponent(modelName){

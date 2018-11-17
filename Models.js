@@ -1,6 +1,62 @@
 Game.models = {
 	saveModelBuilder : function(modelBuilder, output){
-		// First, do loading, then work on saving
+
+		// Save the Skeleton
+		output.writeByte(this.skeletonEncoding.PART_LIST_1);
+		let length = modelBuilder.parts.length;
+		output.writeByte(length - 1);
+		for (let index = 0; index < length; index++){
+			const part = modelBuilder.parts[index];
+			output.writeByte(part.parentIndex);
+			output.writeInt(part.x);
+			output.writeInt(part.y);
+			output.writeInt(part.z);
+			output.writeInt(part.pitch);
+			output.writeInt(part.yaw);
+			output.writeInt(part.roll);
+			if (part.animation instanceof Gui3D.NoAnimation){
+				output.writeByte(this.animationEncoding.NONE);
+			} else {
+				part.animation.save(output);
+			}
+		}
+
+		// Save the Texture
+		output.writeByte(this.textureEncoding.CCB_RGB);
+		output.writeChar(modelBuilder.texture.width);
+		output.writeChar(modelBuilder.texture.height);
+		const size = modelBuilder.texture.width * modelBuilder.texture.height;
+		const textureData = modelBuilder.texture.data;
+		for (let index = 0; index < size; index++) {
+			output.writeByte(BitHelper.javaByteCast(textureData[index * 4]));
+			output.writeByte(BitHelper.javaByteCast(textureData[index * 4 + 1]));
+			output.writeByte(BitHelper.javaByteCast(textureData[index * 4 + 2]));
+		}
+
+		// Save the RawModel
+		output.writeByte(this.modelEncoding.IICB);
+		const positions = modelBuilder.positions;
+		const textureCoords = modelBuilder.textureCoords;
+		const matrices = modelBuilder.matrices;
+		const indices = modelBuilder.indices;
+		output.writeInt(matrices.length);
+		length = positions.length;
+		for (let index = 0; index < length; index++){
+			output.writeInt(positions[index]);
+		}
+		length = textureCoords.length;
+		for (let index = 0; index < length; index++) {
+			output.writeChar(textureCoords[index]);
+		}
+		length = matrices.length;
+		for (let index = 0; index < length; index++) {
+			output.writeByte(matrices[index]);
+		}
+		length = indices.length;
+		output.writeInt(length / 3);
+		for (let index = 0; index < length; index++) {
+			output.writeChar(indices[index]);
+		}
 	},
 	loadModel : function(input){
 		const skeleton = this.loadSkeleton(input);
@@ -28,6 +84,38 @@ Game.models = {
 			texture.data[index * 4] = 255;
 		}
 		return texture;
+	},
+	loadRawModel : function(input){
+		const encoding = input.readByte();
+		if (encoding === this.modelEncoding.IICB){
+			return this.loadRawModelIICB(input);
+		} else {
+			throw 'Unkown raw model encoding: ' + encoding;
+		}
+	},
+	loadRawModelIICB : function(input){
+		const vertexCount = input.readInt();
+		const positions = new Int32Array(vertexCount * 3);
+		const textureCoords = new Uint16Array(vertexCount * 2);
+		const matrices = new Int8Array(vertexCount);
+		let length = positions.length;
+		for (let index = 0; index < length; index++) {
+			positions[index] = input.readInt();
+		}
+		length = textureCoords.length;
+		for (let index = 0; index < length; index++) {
+			textureCoords[index] = input.readChar();
+		}
+		for (let index = 0; index < vertexCount; index++) {
+			matrices[index] = input.readByte();
+		}
+		const triangleCount = input.readInt();
+		const indices = new Uint16Array(triangleCount * 3);
+		length = indices.length;
+		for (let index = 0; index < length; index++) {
+			indices[index] = input.readChar();
+		}
+		return new Gui3D.RawModel(positions, textureCoords, matrices, indices);
 	},
 	loadSkeleton : function(input){
 		const encoding = input.readByte();
@@ -63,6 +151,9 @@ Game.models = {
 		} else {
 			throw 'Unknown animation encoding: ' + type;
 		}
+	},
+	modelEncoding : {
+		IICB : -128
 	},
 	textureEncoding : {
 		CCB_RGB : -128

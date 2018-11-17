@@ -1,13 +1,13 @@
 ModelViewMode.ABSTRACT = {
 	render : function(renderer, modelBuilder, cameraMatrix){
-		const skeleton = modelBuilder.skeleton;
+		const parts = modelBuilder.parts;
 		const matrices = modelBuilder.matrices;
 		const positions = modelBuilder.positions;
 		const posLength = positions.length;
 		const points = new Array(posLength);
 		for (let index = 0; index < posLength; index += 3){
 			const vec3 = new Vectors.Vector3(positions[index], positions[index + 1], positions[index + 2]);
-			const vec4 = skeleton.parts[matrices[index / 3]].matrix.transform(vec3);
+			const vec4 = parts[matrices[index / 3]].matrix.transform(vec3);
 			cameraMatrix.transform(vec4, vec4);
 			if (vec4.w < 0) {
 				vec4.w = -vec4.w;

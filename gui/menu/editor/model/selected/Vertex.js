@@ -1,5 +1,5 @@
 function ModelEditorSelectedVertex(modelBuilder, index){
-	this.model = builder;
+	this.model = modelBuilder;
 	this.index = index;
 }
 

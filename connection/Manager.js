@@ -28,6 +28,7 @@ Game.connectionManager = {
 					auth.state.password = undefined;
 					auth.state.state = auth.state.STATE_DEFAULT;
 					console.log('Connection has been closed', event);
+					Game.guiManager.setMainComponent(Game.menus.main.login);
 					window.alert('Disconnected from server');
 					auth.connection = undefined;
 				}, function(event){
@@ -36,7 +37,7 @@ Game.connectionManager = {
 					auth.state.password = undefined;
 					auth.state.state = auth.state.STATE_DEFAULT;
 					auth.connection = undefined;
-					Game.guiManager.setMainComponent(Game.menus.loginMenu);
+					Game.guiManager.setMainComponent(Game.menus.main.login);
 					window.alert("Can't connect to the authentication server");
 				});
 			}

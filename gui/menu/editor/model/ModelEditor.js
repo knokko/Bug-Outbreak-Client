@@ -37,6 +37,7 @@ GuiModelEditor.prototype.setPopup = function(popup){
 	if(popup){
 		this.state.getManager().setMainComponent(new Gui.PopupMenu(this, popup, 0.25, 0.25, 0.75, 0.75));
 	} else {
+		this.state.getManager().mainComponent.onClose();
 		this.state.getManager().setMainComponent(this);
 	}
 };

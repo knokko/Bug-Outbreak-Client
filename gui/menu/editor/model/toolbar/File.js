@@ -15,15 +15,15 @@ ModelEditorToolbars.createFile = function(editor){
 		this.addComponent(new Gui.TextComponent('Exit', t.props, t.hoverProps, function(x, y, button){
 			if (editor.hasChanges){
 				const popup = new Gui.Menu(ModelEditorPopups.backgroundColor, function(){
-					this.addComponent(new Gui.TextComponent('Would you like to save?', ModelEditorPopups.label), 0.2, 0.6, 0.8, 0.8);
-					this.addComponent(new Gui.TextComponent('Yes', ModelEditorPopups.button, ModelEditorPopups.hoverButton, function(x, y, button){
+					this.addComponent(new Gui.TextComponent('Would you like to save?', ModelEditorPopups.labelProps), 0.2, 0.6, 0.8, 0.8);
+					this.addComponent(new Gui.TextComponent('Yes', ModelEditorPopups.buttonProps, ModelEditorPopups.buttonHoverProps, function(x, y, button){
 						editor.save();
 						editor.exit();
 					}), 0.1, 0.2, 0.3, 0.4);
-					this.addComponent(new Gui.TextComponent('No', ModelEditorPopups.button, ModelEditorPopups.hoverButton, function(x, y, button){
+					this.addComponent(new Gui.TextComponent('No', ModelEditorPopups.buttonProps, ModelEditorPopups.buttonHoverProps, function(x, y, button){
 						editor.exit();
 					}), 0.35, 0.2, 0.55, 0.4);
-					this.addComponent(new Gui.TextComponent('Cancel', ModelEditorPopups.button, ModelEditorPopups.hoverButton, function(x, y, button){
+					this.addComponent(new Gui.TextComponent('Cancel', ModelEditorPopups.buttonProps, ModelEditorPopups.buttonHoverProps, function(x, y, button){
 						editor.setPopup(null);
 					}), 0.6, 0.2, 0.85, 0.4);
 				});

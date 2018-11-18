@@ -4,6 +4,8 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 
 	this.name = name;
 	this.builder = modelBuilder;
+	// Just once
+	this.builder.parts[0].setState();
 	this.save = save;
 	this.saveAs = saveAs;
 	this.exit = exit;

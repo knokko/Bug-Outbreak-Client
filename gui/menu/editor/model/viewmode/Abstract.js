@@ -16,8 +16,18 @@ ModelViewMode.ABSTRACT = {
 			points[index + 1] = vec4.y / vec4.w;
 			points[index + 2] = vec4.z / vec4.w;
 
+			/*
+			about the Z-coordinate:
+			z = 1 means that the vertex is at the far plane of the cameraMatrix
+			z = 0 is a bit unclear, but it means the vertex is close to 2 * nearPlane
+			z = -1 means that the vertex is at the near plane of the camera
+			*/
+
 			// Add support for circles later
-			renderer.fillRect('rgb(0,0,0)', points[index] - 0.05, points[index + 1] - 0.05, points[index] + 0.05, points[index + 1] + 0.05);
+			if (points[index + 2] > - 1 && points[index + 2] < 1){
+				const size = 0.1 / (1 + points[index + 2]);
+				renderer.fillRect('rgb(0,0,0)', points[index] - size, points[index + 1] - size, points[index] + size, points[index + 1] + size);
+			}
 		}
 	}
 };

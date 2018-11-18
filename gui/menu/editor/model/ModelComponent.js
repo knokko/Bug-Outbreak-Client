@@ -13,6 +13,10 @@ ModelEditorModelComponent.prototype.update = function(){
 	const k = this.pressedKeys;
 	const cameraSpeed = 0.01;
 	const objectSpeed = 0.01;
+	const forward = this.editor.camera.getLookVector();
+	if (k['p']) {
+		console.log('camera', this.editor.camera);
+	}
 	if (k['a']) {
 		this.editor.camera.increaseX(-cameraSpeed);
 		this.state.getManager().markDirty();
@@ -22,17 +26,19 @@ ModelEditorModelComponent.prototype.update = function(){
 		this.state.getManager().markDirty();
 	}
 	if (k['s']) {
-		if (k['shift'])
-			this.editor.camera.increaseY(-cameraSpeed);
-		else
-			this.editor.camera.increaseZ(cameraSpeed);
+		this.editor.camera.increaseZ(cameraSpeed);
+		this.state.getManager().markDirty();
+	}
+	if (k['S']){
+		this.editor.camera.increaseY(-cameraSpeed);
 		this.state.getManager().markDirty();
 	}
 	if (k['w']) {
-		if (k['shift'])
-			this.editor.camera.increaseY(cameraSpeed);
-		else
-			this.editor.camera.increaseZ(-cameraSpeed);
+		this.editor.camera.increasePosition(forward.x * cameraSpeed, forward.y * cameraSpeed, forward.z * cameraSpeed);
+		this.state.getManager().markDirty();
+	}
+	if (k['W']){
+		this.editor.camera.increaseY(cameraSpeed);
 		this.state.getManager().markDirty();
 	}
 	if (this.state.getManager().mouseDown){

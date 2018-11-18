@@ -1323,8 +1323,12 @@ const Gui = {};
 Gui.Manager = function(){
 	this.mainComponent = null;
 	this.renderer = null;
+	this.guiState = null;
+	this.totalTickTime = 0;
+	this.ticks = 0;
 	this.mouseX = NaN;
 	this.mouseY = NaN;
+	this.mouseDown = false;
 	this.dirty = true;
 };
 
@@ -1338,8 +1342,6 @@ Gui.Manager.prototype.start = function(){
 	const manager = this;
 	this.guiState = new Gui.ParentComponentState(this);
 	this.mainComponent.state = this.guiState;
-	this.totalTickTime = 0;
-	this.ticks = 0;
 	if(this.mainComponent.init){
 		this.mainComponent.init();
 	}
@@ -1352,6 +1354,12 @@ Gui.Manager.prototype.start = function(){
 		manager.mouseX = event.pageX / window.innerWidth;
 		manager.mouseY = 1 - event.pageY / window.innerHeight;
 		manager.markDirty();
+	});
+	window.addEventListener('mousedown', function(event){
+		manager.mouseDown = true;
+	});
+	window.addEventListener('mouseup', function(event){
+		manager.mouseDown = false;
 	});
 	window.addEventListener('mouseenter', function(event){
 		manager.mouseX = event.pageX / window.innerWidth;
@@ -1753,6 +1761,35 @@ Gui.DynamicChildComponentState.prototype.getHeight = function(){
 	return Math.round((this.maxY() - this.minY()) * this.parent().getHeight());
 };
 
+//library source from Gui/component/state/BackgroundComponentState.js
+Gui.BackgroundComponentState = function(parent){
+	this.parent = parent;
+};
+
+Gui.BackgroundComponentState.prototype.isMouseOver = function(){
+	return false;
+};
+
+Gui.BackgroundComponentState.prototype.getMouseX = function(){
+	return NaN;
+};
+
+Gui.BackgroundComponentState.prototype.getMouseY = function(){
+	return NaN;
+};
+
+Gui.BackgroundComponentState.prototype.getManager = function(){
+	return this.parent.getManager();
+};
+
+Gui.BackgroundComponentState.prototype.getWidth = function(){
+	return this.parent.getWidth();
+};
+
+Gui.BackgroundComponentState.prototype.getHeight = function(){
+	return this.parent.getHeight();
+};
+
 //library source from Gui/component/WrapperComponent.js
 Gui.WrapperComponent = function(component){
 	this.component = component;
@@ -1955,6 +1992,30 @@ Gui.ActivatableTextComponent.prototype.render = function(renderer){
 	}
 };
 
+//library source from Gui/component/ConditionalTextComponent.js
+Gui.ConditionalTextComponent = function(text, props, hoverProps, clickAction, condition, fixedImageWidth, fixedImageHeight){
+	this.text = text;
+	this.props = props;
+	this.hoverProps = hoverProps;
+	this.click = function(x, y, button){
+		if (this.condition()) {
+			clickAction();
+		}
+	};
+	this.condition = condition;
+	this.fixedImageWidth = fixedImageWidth;
+	this.fixedImageHeight = fixedImageHeight;
+	this.refreshImages();
+};
+
+extendProtoType(Gui.TextComponent, Gui.ConditionalTextComponent);
+
+Gui.ConditionalTextComponent.prototype.render = function(renderer){
+	if (this.condition()) {
+		Gui.ImageComponent.prototype.render.call(this, renderer);
+	}
+};
+
 //library source from Gui/component/TextInputComponent.js
 Gui.TextInputComponent = function(startText, maxLength, props, focusProps){
 	this.text = startText;
@@ -2033,12 +2094,16 @@ Gui.Toolbar = function(upperText, upperProps, upperHoverProps, upperActiveProps,
 	this.maxX = maxX;
 	this.upperMaxX = upperMaxX;
 	this.upperY = 1 - upperComponentHeight;
-	this.upperComponent = new Gui.ActivatableTextComponent(upperText, props, hoverProps, activeProps, function(){
+	this.upperComponent = new Gui.ActivatableTextComponent(upperText, upperProps, upperHoverProps, upperActiveProps, function(){
 		this.active = !this.active;
 		this.state.getManager().markDirty();
 	}, function(){
 		return this.active;
 	});
+	this.upperComponent.clickOut = function(button){
+		this.active = false;
+		this.state.getManager().markDirty();
+	};
 	this.didInit = false;
 	this.addComponents = addComponents;
 	this.components = [];
@@ -2047,12 +2112,14 @@ Gui.Toolbar = function(upperText, upperProps, upperHoverProps, upperActiveProps,
 Gui.Toolbar.prototype.init = function(){
 	if(!this.didInit){
 		const y = this.upperY;
-		this.addComponent(this.upperComponent, this.upperY);
+		this.addComponent(this.upperComponent, 1 - this.upperY);
 
 		// The upper component is special
 		this.components[0].maxX = this.upperMaxX;
-		this.components[0].renderer.setBounds(this.minX, 1 - y, this.upperMaxX, 1);
-		this.components[0].state.setBounds(this.minX, 1 - y, this.upperMaxX, 1);
+		this.components[0].renderer.setBounds(this.minX, y, this.upperMaxX, 1);
+		this.components[0].component.state.setBounds(this.minX, y, this.upperMaxX, 1);
+		this.components[0].minY = y;
+		this.components[0].maxY = 1;
 		this.upperY = y;
 
 		// Now add the other components
@@ -2083,17 +2150,18 @@ Gui.Toolbar.prototype.render = function(renderer){
 };
 
 Gui.Toolbar.prototype.click = function(x, y, button){
-	this.components[0].click(x, y, button);
 	if(this.upperComponent.isActive()){
 		const length = this.components.length;
 		for(let index = 1; index < length; index++){
 			this.components[index].click(x, y, button);
 		}
 	}
+	this.components[0].click(x, y, button);
 };
 
 Gui.Toolbar.prototype.clickOut = function(button){
 	const length = this.components.length;
+	this.upperComponent.active = false;
 	for(let index = 0; index < length; index++){
 		if(this.components[index].component.clickOut){
 			this.components[index].component.clickOut(button);
@@ -2260,11 +2328,22 @@ Gui.MenuSubComponent = function(menu, component, minX, minY, maxX, maxY){
 	this.menu = menu;
 	this.renderer = new Gui.StaticChildRenderer(null);
 	this.component = component;
-	this.component.state = new Gui.StaticChildComponentState(menu.state);
+	const sub = this;
+	this.component.state = new Gui.DynamicChildComponentState(function() {
+		return sub.menu.state;
+	}, function(){
+		return sub.minX;
+	}, function(){
+		return sub.minY;
+	}, function(){
+		return sub.maxX;
+	}, function(){
+		return sub.maxY;
+	});
+	this.setBounds(minX, minY, maxX, maxY);
 	if(this.component.init){
 		this.component.init();
 	}
-	this.setBounds(minX, minY, maxX, maxY);
 };
 
 Gui.MenuSubComponent.prototype.render = function(renderer){
@@ -2296,7 +2375,6 @@ Gui.MenuSubComponent.prototype.setBounds = function(minX, minY, maxX, maxY){
 	this.minY = minY;
 	this.maxX = maxX;
 	this.maxY = maxY;
-	this.component.state.setBounds(minX, minY, maxX, maxY);
 	this.renderer.setBounds(minX, minY, maxX, maxY);
 };
 
@@ -2305,7 +2383,10 @@ Gui.FullMenuSubComponent = function(menu, component){
 	this.menu = menu;
 	this.renderer = new Gui.StaticChildRenderer(undefined);
 	this.component = component;
-	this.component.state = menu.state;
+	const sub = this;
+	this.component.state = new Gui.DynamicChildComponentState(function(){
+		return sub.menu.state;
+	}, this.getMinX, this.getMinY, this.getMaxX, this.getMaxY);
 	if(this.component.init){
 		this.component.init();
 	}
@@ -2327,6 +2408,22 @@ Gui.FullMenuSubComponent.prototype.inBounds = function(x, y){
 	return true;
 };
 
+Gui.FullMenuSubComponent.prototype.getMinX = function(){
+	return 0;
+};
+
+Gui.FullMenuSubComponent.prototype.getMinY = function(){
+	return 0;
+};
+
+Gui.FullMenuSubComponent.prototype.getMaxX = function(){
+	return 1;
+};
+
+Gui.FullMenuSubComponent.prototype.getMaxY = function(){
+	return 1;
+};
+
 //library source from Gui/menu/PopupMenu.js
 Gui.PopupMenu = function(background, foreground, minX, minY, maxX, maxY){
 	this.background = background;
@@ -2340,6 +2437,9 @@ Gui.PopupMenu = function(background, foreground, minX, minY, maxX, maxY){
 };
 
 Gui.PopupMenu.prototype.init = function(){
+	this.foreground.state = new Gui.StaticChildComponentState(this.state);
+	this.foreground.state.setBounds(this.minX, this.minY, this.maxX, this.maxY);
+	this.background.state = new Gui.BackgroundComponentState(this.state);
 	this.background.init();
 	this.foreground.init();
 };
@@ -2350,7 +2450,7 @@ Gui.PopupMenu.prototype.update = function(){
 
 Gui.PopupMenu.prototype.render = function(renderer){
 	this.background.render(renderer);
-	renderer.fillRect('rgba(0, 0, 0, 100)', 0, 0, 1, 1);
+	renderer.fillRect('rgba(0, 0, 0, 0.4)', 0, 0, 1, 1);
 	this.renderer.parent = renderer;
 	this.foreground.render(this.renderer);
 };
@@ -2377,6 +2477,11 @@ Gui.PopupMenu.prototype.keyDown = function(key){
 
 Gui.PopupMenu.prototype.keyUp = function(key){
 	this.foreground.keyUp(key);
+};
+
+Gui.PopupMenu.prototype.onClose = function(){
+	this.background.state = this.state;
+	this.background.init();
 };
 
 //source from file libraries/Gui3D.js
@@ -2957,7 +3062,7 @@ Gui3D.ModelBuilder = function(current){
 		this.textureCoords = [];
 		this.matrices = [];
 		this.indices = [];
-		this.parts = [];
+		this.parts = [new Gui3D.SkeletonPart(-1, 0, 0, 0, 0, 0, 0, new Gui3D.NoAnimation())];
 		this.texture = new Gui.Texture(32, 32);
 	}
 	else {
@@ -3014,7 +3119,7 @@ Gui3D.ModelBuilder.prototype.createModel = function(){
 	const positions = new Int32Array(this.positions.length);
 	const textureCoords = new Uint16Array(this.textureCoords.length);
 	const matrices = new Int8Array(this.matrices.length);
-	const indices = new Int32Array(this.indices.length);
+	const indices = new Uint16Array(this.indices.length);
 	const parts = new Array(this.parts);
 	javaArrayCopy(this.positions, 0, positions, 0, positions.length);
 	javaArrayCopy(this.textureCoords, 0, textureCoords, 0, textureCoords.length);
@@ -4288,17 +4393,37 @@ Game.menus.profile.models.overview = new Gui.Menu('rgb(0,150,120)', function(){
 	this.addComponent(Game.menuComponents.profile.models.serverList, 0.05, 0.15, 0.3, 0.8);
 	this.addComponent(Game.menuComponents.profile.models.localList, 0.325, 0.15, 0.575, 0.8);
 	this.addComponent(Game.menuComponents.profile.models.selected, 0.6, 0.4, 0.95, 0.7);
-	this.addComponent(new Gui.ActivatableTextComponent('Create new', TextProperties.button('rgb(0,0,200)', 'rgb(0,0,50)'), TextProperties.button('rgb(0,0,255)', 'rgb(0,0,80)'), TextProperties.button('rgb(200,0,0)', 'rgb(50,0,0)'), function(){
+	this.addComponent(new Gui.ConditionalTextComponent('Create new', TextProperties.button('rgb(0,0,200)', 'rgb(0,0,50)'), TextProperties.hoverButton('rgb(0,0,255)', 'rgb(0,0,80)'), function(){
 		Game.guiManager.setMainComponent(new GuiModelEditor(undefined, new Gui3D.ModelBuilder(), undefined, function(){
 			// Note that this refers to the editor and then to the saveAs menu
 			this.setPopup(new Gui.Menu('rgb(100,0,150)', function(){
-				// TODO create the popup
-				this.addComponent();
+				let selectedSaveMode;
+				const saveOnline = new Gui.ActivatableTextComponent('Save online', TextProperties.button('rgb(80,80,80)', 'rgb(30,30,70)'), TextProperties.hoverButton('rgb(100,100,200)', 'rgb(50,50,100)'), TextProperties.hoverButton('200,100,255', 'rgb(200,100,50)'), function(){
+					selectedSaveMode = this;
+				}, function(){
+					return selectedSaveMode === this;
+				});
+				selectedSaveMode = saveOnline;
+				this.addComponent(saveOnline, 0.6, 0.7, 0.8, 0.8);
+				this.addComponent(new Gui.ActivatableTextComponent('Save offline', TextProperties.button('rgb(80,80,80)', 'rgb(30,30,70)'), TextProperties.hoverButton('rgb(100,100,200)', 'rgb(50,50,100)'), TextProperties.hoverButton('200,100,255', 'rgb(200,100,50)'), function(){
+					selectedSaveMode = this;
+				}, function(){
+					return selectedSaveMode === this;
+				}), 0.6, 0.5, 0.8, 0.6);
+				this.addComponent(new Gui.TextComponent('Name: ', TextProperties.label()), 0.1, 0.4, 0.2, 0.475);
+				this.addComponent(new Gui.TextInputComponent('', 25, TextProperties.edit(), TextProperties.focusEdit()), 0.1, 0.3, 0.4, 0.4);
+				this.addComponent(new Gui.TextComponent('Save', TextProperties.button('rgb(0,200,0)', 'rgb(0,50,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,65,0)'), function(){
+					if (selectedSaveMode === saveOnline){
+						window.alert('Save online');
+					} else {
+						window.alert('Save offline');
+					}
+				}), 0.2, 0.1, 0.3, 0.2);
 			}));
 		}, function(){
 			Game.guiManager.setMainComponent(Game.menus.main.afterAuth);
-			Game.menus.profile.models.localList.refresh();
-			Game.menus.profile.models.serverList.refresh();
+			Game.menuComponents.profile.models.localList.refresh();
+			Game.menuComponents.profile.models.serverList.refresh();
 			Game.menus.profile.models.overview.setSelected(null);
 		}));
 	}, function(){
@@ -4340,6 +4465,8 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 
 	this.name = name;
 	this.builder = modelBuilder;
+	// Just once
+	this.builder.parts[0].setState();
 	this.save = save;
 	this.saveAs = saveAs;
 	this.exit = exit;
@@ -4371,6 +4498,7 @@ GuiModelEditor.prototype.setPopup = function(popup){
 	if(popup){
 		this.state.getManager().setMainComponent(new Gui.PopupMenu(this, popup, 0.25, 0.25, 0.75, 0.75));
 	} else {
+		this.state.getManager().mainComponent.onClose();
 		this.state.getManager().setMainComponent(this);
 	}
 };
@@ -4400,6 +4528,8 @@ const ModelEditorPopups = {
 function ModelEditorModelComponent(editor){
 	this.editor = editor;
 	this.pressedKeys = {};
+	this.prevMouseX = NaN;
+	this.prevMouseY = NaN;
 }
 
 ModelEditorModelComponent.prototype.render = function(renderer){
@@ -4432,13 +4562,35 @@ ModelEditorModelComponent.prototype.update = function(){
 			this.editor.camera.increaseZ(-cameraSpeed);
 		this.state.getManager().markDirty();
 	}
+	if (this.state.getManager().mouseDown){
+		const newMouseX = this.state.getMouseX();
+		const newMouseY = this.state.getMouseY();
+		if (this.prevMouseX === this.prevMouseX && this.prevMouseY === this.prevMouseY && newMouseX === newMouseX && newMouseY === newMouseY){
+			const dx = newMouseX - this.prevMouseX;
+			const dy = newMouseY - this.prevMouseY;
+			if (dx) {
+				this.editor.camera.increaseYaw(dx * 100);
+			}
+			if (dy) {
+				this.editor.camera.increasePitch(-dy * 100);
+			}
+			if (dx || dy) {
+				this.state.getManager().markDirty();
+			}
+		}
+		this.prevMouseX = newMouseX;
+		this.prevMouseY = newMouseY;
+	} else {
+		this.prevMouseX = NaN;
+		this.prevMouseY = NaN;
+	}
 	if (this.editor.selected) {
 		if (k['ArrowLeft']) {
-			this.editor.selected.move(-objectSpeed, 0);
+			this.editor.selected.move(-objectSpeed, 0, 0);
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowRight']) {
-			this.editor.selected.move(objectSpeed, 0);
+			this.editor.selected.move(objectSpeed, 0, 0);
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowUp']) {
@@ -4484,15 +4636,15 @@ ModelEditorToolbars.createFile = function(editor){
 		this.addComponent(new Gui.TextComponent('Exit', t.props, t.hoverProps, function(x, y, button){
 			if (editor.hasChanges){
 				const popup = new Gui.Menu(ModelEditorPopups.backgroundColor, function(){
-					this.addComponent(new Gui.TextComponent('Would you like to save?', ModelEditorPopups.label), 0.2, 0.6, 0.8, 0.8);
-					this.addComponent(new Gui.TextComponent('Yes', ModelEditorPopups.button, ModelEditorPopups.hoverButton, function(x, y, button){
+					this.addComponent(new Gui.TextComponent('Would you like to save?', ModelEditorPopups.labelProps), 0.2, 0.6, 0.8, 0.8);
+					this.addComponent(new Gui.TextComponent('Yes', ModelEditorPopups.buttonProps, ModelEditorPopups.buttonHoverProps, function(x, y, button){
 						editor.save();
 						editor.exit();
 					}), 0.1, 0.2, 0.3, 0.4);
-					this.addComponent(new Gui.TextComponent('No', ModelEditorPopups.button, ModelEditorPopups.hoverButton, function(x, y, button){
+					this.addComponent(new Gui.TextComponent('No', ModelEditorPopups.buttonProps, ModelEditorPopups.buttonHoverProps, function(x, y, button){
 						editor.exit();
 					}), 0.35, 0.2, 0.55, 0.4);
-					this.addComponent(new Gui.TextComponent('Cancel', ModelEditorPopups.button, ModelEditorPopups.hoverButton, function(x, y, button){
+					this.addComponent(new Gui.TextComponent('Cancel', ModelEditorPopups.buttonProps, ModelEditorPopups.buttonHoverProps, function(x, y, button){
 						editor.setPopup(null);
 					}), 0.6, 0.2, 0.85, 0.4);
 				});
@@ -4510,13 +4662,15 @@ ModelEditorToolbars.createAdd = function(editor){
 	const t = ModelEditorToolbars;
 	const toolbar = new Gui.Toolbar('Add', t.upperProps, t.upperHoverProps, t.upperActiveProps, 0.05, 0.15, 0.35, 0.25, function(){
 		this.addComponent(new Gui.TextComponent('Vertex', t.props, t.hoverProps, function(x, y, button){
+			console.log('Clicked on vertex');
 			const cam = editor.camera;
 			const look = cam.getLookVector();
-			editor.selected = new ModelEditorSelectedVertex(editor, editor.builder.addVertex(cam.getX() + look.getX(), cam.getY() + look.getY(), cam.getZ() + look.getZ(), 0, 0, 0));
+			editor.selected = new ModelEditorSelectedVertex(editor.builder, editor.builder.addVertex(cam.getX() + look.x, cam.getY() + look.y, cam.getZ() + look.z, 0, 0, 0));
 			editor.setViewMode(ModelViewMode.ABSTRACT);
 			editor.hasChanges = true;
-		}));
+		}), 0.05);
 	});
+	return toolbar;
 };
 
 //source from file gui/menu/editor/model/viewmode/ViewMode.js
@@ -4525,14 +4679,14 @@ const ModelViewMode = {};
 //source from file gui/menu/editor/model/viewmode/Abstract.js
 ModelViewMode.ABSTRACT = {
 	render : function(renderer, modelBuilder, cameraMatrix){
-		const skeleton = modelBuilder.skeleton;
+		const parts = modelBuilder.parts;
 		const matrices = modelBuilder.matrices;
 		const positions = modelBuilder.positions;
 		const posLength = positions.length;
 		const points = new Array(posLength);
 		for (let index = 0; index < posLength; index += 3){
 			const vec3 = new Vectors.Vector3(positions[index], positions[index + 1], positions[index + 2]);
-			const vec4 = skeleton.parts[matrices[index / 3]].matrix.transform(vec3);
+			const vec4 = parts[matrices[index / 3]].matrix.transform(vec3);
 			cameraMatrix.transform(vec4, vec4);
 			if (vec4.w < 0) {
 				vec4.w = -vec4.w;
@@ -4556,7 +4710,7 @@ ModelViewMode.REAL = {
 
 //source from file gui/menu/editor/model/selected/Vertex.js
 function ModelEditorSelectedVertex(modelBuilder, index){
-	this.model = builder;
+	this.model = modelBuilder;
 	this.index = index;
 }
 
@@ -4598,6 +4752,7 @@ Game.connectionManager = {
 					auth.state.password = undefined;
 					auth.state.state = auth.state.STATE_DEFAULT;
 					console.log('Connection has been closed', event);
+					Game.guiManager.setMainComponent(Game.menus.main.login);
 					window.alert('Disconnected from server');
 					auth.connection = undefined;
 				}, function(event){
@@ -4606,7 +4761,7 @@ Game.connectionManager = {
 					auth.state.password = undefined;
 					auth.state.state = auth.state.STATE_DEFAULT;
 					auth.connection = undefined;
-					Game.guiManager.setMainComponent(Game.menus.loginMenu);
+					Game.guiManager.setMainComponent(Game.menus.main.login);
 					window.alert("Can't connect to the authentication server");
 				});
 			}

@@ -1,6 +1,8 @@
 function ModelEditorModelComponent(editor){
 	this.editor = editor;
 	this.pressedKeys = {};
+	this.prevMouseX = NaN;
+	this.prevMouseY = NaN;
 }
 
 ModelEditorModelComponent.prototype.render = function(renderer){
@@ -33,13 +35,35 @@ ModelEditorModelComponent.prototype.update = function(){
 			this.editor.camera.increaseZ(-cameraSpeed);
 		this.state.getManager().markDirty();
 	}
+	if (this.state.getManager().mouseDown){
+		const newMouseX = this.state.getMouseX();
+		const newMouseY = this.state.getMouseY();
+		if (this.prevMouseX === this.prevMouseX && this.prevMouseY === this.prevMouseY && newMouseX === newMouseX && newMouseY === newMouseY){
+			const dx = newMouseX - this.prevMouseX;
+			const dy = newMouseY - this.prevMouseY;
+			if (dx) {
+				this.editor.camera.increaseYaw(dx * 100);
+			}
+			if (dy) {
+				this.editor.camera.increasePitch(-dy * 100);
+			}
+			if (dx || dy) {
+				this.state.getManager().markDirty();
+			}
+		}
+		this.prevMouseX = newMouseX;
+		this.prevMouseY = newMouseY;
+	} else {
+		this.prevMouseX = NaN;
+		this.prevMouseY = NaN;
+	}
 	if (this.editor.selected) {
 		if (k['ArrowLeft']) {
-			this.editor.selected.move(-objectSpeed, 0);
+			this.editor.selected.move(-objectSpeed, 0, 0);
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowRight']) {
-			this.editor.selected.move(objectSpeed, 0);
+			this.editor.selected.move(objectSpeed, 0, 0);
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowUp']) {

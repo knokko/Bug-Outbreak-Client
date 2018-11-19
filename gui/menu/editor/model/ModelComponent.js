@@ -13,32 +13,37 @@ ModelEditorModelComponent.prototype.update = function(){
 	const k = this.pressedKeys;
 	const cameraSpeed = 0.01;
 	const objectSpeed = 0.01;
-	const forward = this.editor.camera.getLookVector();
 	if (k['p']) {
 		console.log('camera', this.editor.camera);
 	}
 	if (k['a']) {
-		this.editor.camera.increaseX(-cameraSpeed);
+		const right = this.editor.camera.getRightVector();
+		this.editor.camera.increasePosition(-right.x * cameraSpeed, -right.y * cameraSpeed, -right.z * cameraSpeed);
 		this.state.getManager().markDirty();
 	}
 	if (k['d']) {
-		this.editor.camera.increaseX(cameraSpeed);
+		const right = this.editor.camera.getRightVector();
+		this.editor.camera.increasePosition(right.x * cameraSpeed, right.y * cameraSpeed, right.z * cameraSpeed);
 		this.state.getManager().markDirty();
 	}
 	if (k['s']) {
-		this.editor.camera.increaseZ(cameraSpeed);
+		const forward = this.editor.camera.getForwardVector();
+		this.editor.camera.increasePosition(-forward.x * cameraSpeed, -forward.y * cameraSpeed, -forward.z * cameraSpeed);
 		this.state.getManager().markDirty();
 	}
 	if (k['S']){
-		this.editor.camera.increaseY(-cameraSpeed);
+		const up = this.editor.camera.getUpVector();
+		this.editor.camera.increasePosition(-up.x * cameraSpeed, -up.y * cameraSpeed, -up.z * cameraSpeed);
 		this.state.getManager().markDirty();
 	}
 	if (k['w']) {
+		const forward = this.editor.camera.getForwardVector();
 		this.editor.camera.increasePosition(forward.x * cameraSpeed, forward.y * cameraSpeed, forward.z * cameraSpeed);
 		this.state.getManager().markDirty();
 	}
 	if (k['W']){
-		this.editor.camera.increaseY(cameraSpeed);
+		const up = this.editor.camera.getUpVector();
+		this.editor.camera.increasePosition(up.x * cameraSpeed, up.y * cameraSpeed, up.z * cameraSpeed);
 		this.state.getManager().markDirty();
 	}
 	if (this.state.getManager().mouseDown){

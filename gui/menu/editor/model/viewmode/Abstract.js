@@ -25,7 +25,7 @@ ModelViewMode.ABSTRACT = {
 
 			// Add support for circles later
 			if (points[index + 2] > - 1 && points[index + 2] < 1){
-				const size = 2.01 - (1 + points[index + 2]);
+				const size = 0.26 - (1 + points[index + 2]) / 8;
 				renderer.fillRect(editor.selected instanceof ModelEditorSelectedVertex && editor.selected.index === index / 3 ? 'rgb(200,0,0)' : 'rgb(0,0,0)', points[index] - size, points[index + 1] - size, points[index] + size, points[index + 1] + size);
 			}
 		}

@@ -1,5 +1,5 @@
 ModelViewMode.ABSTRACT = {
-	render : function(renderer, modelBuilder, cameraMatrix){
+	render : function(renderer, modelBuilder, cameraMatrix, editor){
 		const parts = modelBuilder.parts;
 		const matrices = modelBuilder.matrices;
 		const positions = modelBuilder.positions;
@@ -12,8 +12,8 @@ ModelViewMode.ABSTRACT = {
 			if (vec4.w < 0) {
 				vec4.w = -vec4.w;
 			}
-			points[index] = vec4.x / vec4.w;
-			points[index + 1] = vec4.y / vec4.w;
+			points[index] = (vec4.x / vec4.w + 1) / 2;
+			points[index + 1] = (vec4.y / vec4.w + 1) / 2;
 			points[index + 2] = vec4.z / vec4.w;
 
 			/*
@@ -25,8 +25,8 @@ ModelViewMode.ABSTRACT = {
 
 			// Add support for circles later
 			if (points[index + 2] > - 1 && points[index + 2] < 1){
-				const size = 0.1 / (1 + points[index + 2]);
-				renderer.fillRect('rgb(0,0,0)', points[index] - size, points[index + 1] - size, points[index] + size, points[index + 1] + size);
+				const size = 2.01 - (1 + points[index + 2]);
+				renderer.fillRect(editor.selected instanceof ModelEditorSelectedVertex && editor.selected.index === index / 3 ? 'rgb(200,0,0)' : 'rgb(0,0,0)', points[index] - size, points[index + 1] - size, points[index] + size, points[index + 1] + size);
 			}
 		}
 	}

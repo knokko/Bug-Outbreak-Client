@@ -6,7 +6,7 @@ function ModelEditorModelComponent(editor){
 }
 
 ModelEditorModelComponent.prototype.render = function(renderer){
-	this.editor.viewMode.render(renderer, this.editor.builder, this.editor.camera.getMatrix());
+	this.editor.viewMode.render(renderer, this.editor.builder, this.editor.camera.getMatrix(), this.editor);
 };
 
 ModelEditorModelComponent.prototype.update = function(){

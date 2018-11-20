@@ -31,6 +31,8 @@ GuiModelEditor.prototype.addComponents = function(){
 	this.addComponent(new ModelEditorModelComponent(this), 0.05, 0.05, 0.95, 0.9);
 	this.addFullComponent(ModelEditorToolbars.createFile(this));
 	this.addFullComponent(ModelEditorToolbars.createAdd(this));
+	this.addFullComponent(ModelEditorToolbars.createBind(this));
+	this.addFullComponent(ModelEditorToolbars.createSelect(this));
 };
 
 GuiModelEditor.prototype.setPopup = function(popup){

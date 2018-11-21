@@ -15,6 +15,22 @@ const TextProperties = {
 			font : font
 		};
 	},
+	area : function(textColor, backgroundColor, borderColor, font){
+		if (textColor === undefined) textColor = 'rgb(0,0,0)';
+		if (backgroundColor === undefined) backgroundColor = 'rgba(0,0,0,0)';
+		if (borderColor === undefined) borderColor = backgroundColor;
+		if (font === undefined) font = '40px sans-serif';
+		return {
+			textColor : textColor,
+			backgroundColor : backgroundColor,
+			borderColor : borderColor,
+			borderX : 0.02,
+			borderY : 0.02,
+			marginX : 0.02,
+			marginY : 0.02,
+			font : font
+		};
+	},
 	button : function(backgroundColor, borderColor, textColor, font){
 		if(backgroundColor === undefined) backgroundColor = 'rgb(0,150,150)';
 		if(borderColor === undefined) borderColor = 'rgb(0,60,0)';

@@ -1,7 +1,8 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
 <style>
 canvas {
   border:1px solid #d3d3d3;
@@ -1420,6 +1421,23 @@ Gui.Manager.prototype.markDirty = function(){
 	this.dirty = true;
 };
 
+Gui.Manager.prototype.convertKey = function(key){
+	// For some reason, internet explorer uses Left instead of ArrowLeft
+	if (key === 'Left') {
+		return 'ArrowLeft';
+	}
+	if (key === 'Up') {
+		return 'ArrowUp';
+	}
+	if (key === 'Right') {
+		return 'ArrowRight';
+	}
+	if (key === 'Down') {
+		return 'ArrowDown';
+	}
+	return key;
+}
+
 Gui.Manager.prototype.start = function(){
 	this.renderer = new Gui.CanvasRenderer();
 	this.renderer.start();
@@ -1460,13 +1478,13 @@ Gui.Manager.prototype.start = function(){
 		manager.markDirty();
 	});
 	window.addEventListener('keypress', function(event){
-		if(event.key.length > 0 && manager.mainComponent.keyType){
-			manager.mainComponent.keyType(event.key);
+		if(event.key.length === 1 && manager.mainComponent.keyType){
+			manager.mainComponent.keyType(manager.convertKey(event.key));
 		}
 	});
 	window.addEventListener('keydown', function(event){
 		if(manager.mainComponent.keyDown){
-			manager.mainComponent.keyDown(event.key);
+			manager.mainComponent.keyDown(manager.convertKey(event.key));
 		}
 		if(event.key === 't'){
 			console.log('Average tick time is ' + (manager.totalTickTime / manager.ticks) + ' ms');
@@ -1474,7 +1492,7 @@ Gui.Manager.prototype.start = function(){
 	});
 	window.addEventListener('keyup', function(event){
 		if(manager.mainComponent.keyUp){
-			manager.mainComponent.keyUp(event.key);
+			manager.mainComponent.keyUp(manager.convertKey(event.key));
 		}
 	});
 	const onGuiUpdate = function(timestamp){
@@ -1654,7 +1672,10 @@ Gui.CanvasRenderer.prototype.drawRect = function(color, minX, minY, maxX, maxY){
 
 Gui.CanvasRenderer.prototype.renderImage = function(image, minX, minY, maxX, maxY){
 	if(maxX >= 0 && maxY >= 0 && minX <= 1 && minY <= 1){
-		this.context.drawImage(image, minX * this.width, (1 - maxY) * this.height, (maxX - minX) * this.width, (maxY - minY) * this.height);
+		// It is possible that one of the images is incomplete, in that case a new render will be called soon
+		if (image.complete) {
+			this.context.drawImage(image, minX * this.width, (1 - maxY) * this.height, (maxX - minX) * this.width, (maxY - minY) * this.height);
+		}
 	}
 };
 
@@ -1963,15 +1984,28 @@ Gui.ImageComponent.prototype.render = function(renderer){
 
 Gui.ImageComponent.prototype.setBaseImage = function(image){
 	this.baseImage = image;
-	if(this.state){
-		this.state.getManager().markDirty();
-	}
+	this.markOnComplete(image);
 };
 
 Gui.ImageComponent.prototype.setHoverImage = function(image){
 	this.hoverImage = image;
-	if(this.state){
-		this.state.getManager().markDirty();
+	this.markOnComplete(image);
+};
+
+Gui.ImageComponent.prototype.markOnComplete = function(image){
+	if (image) {
+		const component = this;
+		if (image.complete) {
+			if (this.state) {
+				this.state.getManager().markDirty();
+			}
+		} else {
+			image.addEventListener('load', function(){
+				if (component.state) {
+					component.state.getManager().markDirty();
+				}
+			});
+		}
 	}
 };
 
@@ -2069,9 +2103,7 @@ Gui.ActivatableTextComponent.prototype.refreshActiveImage = function(){
 
 Gui.ActivatableTextComponent.prototype.setActiveImage = function(image){
 	this.activeImage = image;
-	if(this.state){
-		this.state.getManager().markDirty();
-	}
+	this.markOnComplete(image);
 };
 
 Gui.ActivatableTextComponent.prototype.setActiveProps = function(props){

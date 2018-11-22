@@ -91,7 +91,7 @@ Game.connectionManager = {
 				}, function(event){
 					profile.state.state = profile.state.STATE_DEFAULT;
 					profile.connection = undefined;
-					Game.guiManager.setMainComponent(Game.menus.afterAuthMenu);
+					Game.guiManager.setMainComponent(Game.menus.main.afterAuth);
 					window.alert("Can't connect to the profile server");
 				});
 			}

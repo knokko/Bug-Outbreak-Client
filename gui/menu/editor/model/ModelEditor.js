@@ -100,3 +100,8 @@ const ModelEditorPopups = {
 	buttonHoverProps : TextProperties.hoverButton('rgb(130,0,255)', 'rgb(255,0,255)'),
 	backgroundColor : 'rgb(25, 0, 100)'
 };
+
+const ModelEditorCombos = {
+	props: TextProperties.listElement('rgb(200,200,200)', 'rgb(20,20,20)'),
+	hoverProps : TextProperties.listElement('rgb(150,150,255)', 'rgb(60,60,10)')
+};

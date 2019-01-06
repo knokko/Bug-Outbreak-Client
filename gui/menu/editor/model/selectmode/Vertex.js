@@ -6,6 +6,8 @@ ModelEditorSelectModes.Vertex = function(editor, onEnter, onCancel){
 
 ModelEditorSelectModes.createDefault = function(editor){
 	return new ModelEditorSelectModes.Vertex(editor, function(index){
+
+		// TODO don't create new menus all the time
 		editor.setSelected(new ModelEditorSelectedVertex(editor, index));
 	});
 };

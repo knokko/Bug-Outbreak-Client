@@ -4,7 +4,7 @@ ModelEditorToolbars.createAdd = function(editor){
 		this.addComponent(new Gui.TextComponent('Vertex', t.props, t.hoverProps, function(x, y, button){
 			const cam = editor.camera;
 			const look = cam.getForwardVector();
-			editor.selected = new ModelEditorSelectedVertex(editor.builder, editor.builder.addVertex(cam.getX() + look.x, cam.getY() + look.y, cam.getZ() + look.z, 0, 0, 0));
+			editor.setSelected(new ModelEditorSelectedVertex(editor, editor.builder.addVertex(cam.getX() + look.x, cam.getY() + look.y, cam.getZ() + look.z, 0, 0, 0)));
 			editor.setViewMode(ModelViewMode.ABSTRACT);
 			editor.hasChanges = true;
 		}), 0.05);

@@ -78,14 +78,14 @@ ModelEditorModelComponent.prototype.update = function(){
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowUp']) {
-			if (k['shift'])
+			if (k['Shift'])
 				this.editor.selected.move(0, objectSpeed, 0);
 			else
 				this.editor.selected.move(0, 0, -objectSpeed);
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowDown']) {
-			if (k['shift'])
+			if (k['Shift'])
 				this.editor.selected.move(0, -objectSpeed, 0);
 			else
 				this.editor.selected.move(0, 0, objectSpeed);
@@ -100,4 +100,8 @@ ModelEditorModelComponent.prototype.keyDown = function(key){
 
 ModelEditorModelComponent.prototype.keyUp = function(key){
 	this.pressedKeys[key] = false;
+};
+
+ModelEditorModelComponent.prototype.click = function(x, y){
+	this.editor.selectMode.click(x, y);
 };

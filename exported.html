@@ -4219,8 +4219,8 @@ const TextProperties = {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
 			borderColor : borderColor,
-			borderX : 0.025,
-			borderY : 0.05,
+			borderX : 0,
+			borderY : 0,
 			marginX : 0.05,
 			marginY : 0.1,
 			horAlignment : 'middle',
@@ -4236,8 +4236,8 @@ const TextProperties = {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
 			borderColor : borderColor,
-			borderX : 0.025,
-			borderY : 0.05,
+			borderX : 0,
+			borderY : 0,
 			marginX : 0.05,
 			marginY : 0.1,
 			horAlignment : 'middle',
@@ -4480,18 +4480,18 @@ Game.menus.main.register = new Gui.Menu('rgb(0,150,120)', function(){
 
 //source from file gui/menu/main/AfterAuth.js
 Game.menus.main.afterAuth = new Gui.Menu('rgb(0, 150, 120)', function(){
-	this.tabProperties = TextProperties.tab('rgb(90,150,120)', 'rgb(0,150,120)');
+	this.tabProperties = TextProperties.tab('#00000000', '#00000000');
 	this.tabHoverProperties = TextProperties.hoverTab('rgb(70,150,120)', 'rgb(0,150,120)');
 	this.tabActiveProperties = TextProperties.tab('rgb(0,150,120)', 'rgb(0,150,120)');
 	this.tabComponent = new Gui.WrapperComponent(new Gui.BackgroundComponent('rgb(0,150,120)'));
-	this.addComponent(this.tabComponent, 0, 0, 1, 0.95);
-	this.addComponent(new Gui.BackgroundComponent('rgb(120,150,120)'), 0, 0.95, 1, 1);
+	this.addComponent(this.tabComponent, 0, 0, 1, 0.925);
+	this.addComponent(new Gui.BackgroundComponent('rgb(90,150,120)'), 0, 0.925, 1, 1);
 	this.addComponent(new Gui.ActivatableTextComponent('Play', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
 		Game.connectionManager.auth.speaker.realmList();
 		// Here, I ask a new realm list intentionally to force an update
 	}, function(){
 		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.realm.select.overview;
-	}), 0, 0.95, 0.1, 1);
+	}), 0, 0.925, 0.1, 1);
 	this.addComponent(new Gui.ActivatableTextComponent('Profile', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
 		if (Game.connectionManager.profile.state.state === Game.connectionManager.profile.state.STATE_LOGGED_IN) {
 			Game.menus.main.afterAuth.setActiveTab(Game.menus.profile.overview);
@@ -4500,19 +4500,19 @@ Game.menus.main.afterAuth = new Gui.Menu('rgb(0, 150, 120)', function(){
 		}
 	}, function(){
 		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.profile.overview;
-	}), 0.11, 0.95, 0.21, 1);
+	}), 0.1, 0.925, 0.2, 1);
 	this.addComponent(new Gui.ActivatableTextComponent('Account', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
 		Game.connectionManager.auth.speaker.accountData();
 		// Always refresh account data
 	}, function(){
 		return Game.menus.main.afterAuth.tabComponent.component === Game.menus.account.overview;
-	}), 0.22, 0.95, 0.32, 1);
+	}), 0.2, 0.925, 0.3, 1);
 	if(Game.connectionManager.auth.state.op){
 		this.addComponent(new Gui.ActivatableTextComponent('Dev', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
 			window.alert('Connect with the development server');
 		}, function(){
 			return Game.menus.main.afterAuth.tabComponent.component === Game.menus.dev.overview;
-		}), 0.9, 0.95, 1, 1);
+		}), 0.9, 0.925, 1, 1);
 	}
 	this.setActiveTab = function(menu){
 		this.tabComponent.setComponent(menu);
@@ -4591,17 +4591,17 @@ Game.menus.realm.select.selected = new Gui.Menu('rgb(0,150,120)', function(){
 
 //source from file gui/menu/profile/Overview.js
 Game.menus.profile.overview = new Gui.Menu('rgb(0, 150, 120)', function(){
-	this.tabProperties = TextProperties.tab('rgb(90,150,120)', 'rgb(0,150,120)');
+	this.tabProperties = TextProperties.tab('#00000000', 'rgb(0,150,120)');
 	this.tabHoverProperties = TextProperties.hoverTab('rgb(70,150,120)', 'rgb(0,150,120)');
 	this.tabActiveProperties = TextProperties.tab('rgb(0,150,120)', 'rgb(0,150,120)');
 	this.tabComponent = new Gui.WrapperComponent(new Gui.BackgroundComponent('rgb(0,150,120)'));
-	this.addComponent(this.tabComponent, 0, 0, 1, 0.95);
-	this.addComponent(new Gui.BackgroundComponent('rgb(120,150,120)'), 0, 0.95, 1, 1);
+	this.addComponent(this.tabComponent, 0, 0, 1, 0.925);
+	this.addComponent(new Gui.BackgroundComponent('rgb(90,150,120)'), 0, 0.925, 1, 1);
 	this.addComponent(new Gui.ActivatableTextComponent('Character models', this.tabProperties, this.tabHoverProperties, this.tabActiveProperties, function(){
 		Game.connectionManager.profile.speaker.requestModels();
 	}, function(){
 		return Game.menus.profile.overview.tabComponent.component === Game.menus.profile.models.overview;
-	}), 0, 0.95, 0.1, 1);
+	}), 0, 0.925, 0.1, 1);
 	this.setActiveTab = function(menu){
 		this.tabComponent.setComponent(menu);
 	};
@@ -4675,6 +4675,7 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 
 	this.name = name;
 	this.builder = modelBuilder;
+
 	// Just once
 	this.builder.parts[0].setState();
 	this.save = save;
@@ -4682,15 +4683,17 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 	this.exit = exit;
 
 	this.hasChanges = false;
+
 	// Initialize in addComponents
 	this.camera = null;
 	this.viewMode = ModelViewMode.ABSTRACT;
+	this.selectMode = ModelEditorSelectModes.createDefault(this);
 	this.selected = null;
 }
 
 extendProtoType(Gui.Menu, GuiModelEditor);
 
-GuiModelEditor.prototype.backgroundColor = 'rgb(0, 50, 250)';
+GuiModelEditor.prototype.backgroundColor = 'rgb(0,50,250)';
 
 GuiModelEditor.prototype.tabProperties = TextProperties.tab('rgb(200,200,250)', 'rgb(150,150,250)');
 GuiModelEditor.prototype.tabHoverProperties = TextProperties.hoverTab('rgb(170,170,250)', 'rgb(120,120,250)');
@@ -4698,12 +4701,27 @@ GuiModelEditor.prototype.tabActiveProperties = TextProperties.tab('rgb(130,130,2
 
 GuiModelEditor.prototype.addComponents = function(){
 	this.camera = new Gui3D.Camera(70, 0.01, 1000, this.state.getWidth(), this.state.getHeight(), 0, 0, 5, 0, 0, 0);
+
+	// The components responsible for rendering the current state of the model
 	this.addComponent(new Gui.BackgroundComponent(this.backgroundColor), 0.0, 0.9, 1.0, 1.0);
 	this.addComponent(new ModelEditorModelComponent(this), 0.05, 0.05, 0.95, 0.9);
+
+	// The toolbars
 	this.addFullComponent(ModelEditorToolbars.createFile(this));
 	this.addFullComponent(ModelEditorToolbars.createAdd(this));
 	this.addFullComponent(ModelEditorToolbars.createBind(this));
 	this.addFullComponent(ModelEditorToolbars.createSelect(this));
+
+	// The component at the right of the screen
+	this.rightComponent = new Gui.WrapperComponent(new Gui.BackgroundComponent('rgb(150,150,150)'));
+	this.addComponent(this.rightComponent, 0.7, 0, 1, 0.9);
+};
+
+GuiModelEditor.prototype.keyDown = function(key){
+	if (this.selectMode !== null){
+		this.selectMode.keyDown(key);
+	}
+	Gui.Menu.prototype.keyDown.call(this, key);
 };
 
 GuiModelEditor.prototype.setPopup = function(popup){
@@ -4718,6 +4736,24 @@ GuiModelEditor.prototype.setPopup = function(popup){
 GuiModelEditor.prototype.setViewMode = function(view){
 	this.viewMode = view;
 	this.state.getManager().markDirty();
+};
+
+GuiModelEditor.prototype.setSelectMode = function(mode){
+	this.selectMode = mode;
+	mode.onOpen();
+	this.state.getManager().markDirty();
+};
+
+GuiModelEditor.prototype.setSelected = function(selected){
+	this.selected = selected;
+	if (selected){
+		selected.onOpen();
+	}
+	this.state.getManager().markDirty();
+}
+
+GuiModelEditor.prototype.setRightComponent = function(component){
+	this.rightComponent.setComponent(component);
 };
 
 const ModelEditorToolbars = {
@@ -4817,14 +4853,14 @@ ModelEditorModelComponent.prototype.update = function(){
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowUp']) {
-			if (k['shift'])
+			if (k['Shift'])
 				this.editor.selected.move(0, objectSpeed, 0);
 			else
 				this.editor.selected.move(0, 0, -objectSpeed);
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowDown']) {
-			if (k['shift'])
+			if (k['Shift'])
 				this.editor.selected.move(0, -objectSpeed, 0);
 			else
 				this.editor.selected.move(0, 0, objectSpeed);
@@ -4839,6 +4875,10 @@ ModelEditorModelComponent.prototype.keyDown = function(key){
 
 ModelEditorModelComponent.prototype.keyUp = function(key){
 	this.pressedKeys[key] = false;
+};
+
+ModelEditorModelComponent.prototype.click = function(x, y){
+	this.editor.selectMode.click(x, y);
 };
 
 //source from file gui/menu/editor/model/toolbar/File.js
@@ -4887,7 +4927,7 @@ ModelEditorToolbars.createAdd = function(editor){
 		this.addComponent(new Gui.TextComponent('Vertex', t.props, t.hoverProps, function(x, y, button){
 			const cam = editor.camera;
 			const look = cam.getForwardVector();
-			editor.selected = new ModelEditorSelectedVertex(editor.builder, editor.builder.addVertex(cam.getX() + look.x, cam.getY() + look.y, cam.getZ() + look.z, 0, 0, 0));
+			editor.setSelected(new ModelEditorSelectedVertex(editor, editor.builder.addVertex(cam.getX() + look.x, cam.getY() + look.y, cam.getZ() + look.z, 0, 0, 0)));
 			editor.setViewMode(ModelViewMode.ABSTRACT);
 			editor.hasChanges = true;
 		}), 0.05);
@@ -4910,8 +4950,15 @@ ModelEditorToolbars.createBind = function(editor){
 ModelEditorToolbars.createSelect = function(editor){
 	const t = ModelEditorToolbars;
 	const toolbar = new Gui.Toolbar('Select', t.upperProps, t.upperHoverProps, t.upperActiveProps, 0.05, 0.35, 0.55, 0.5, function(){
-		this.addComponent(new Gui.TextComponent('Vertex', t.props, t.hoverProps, function(x, y){
-			window.alert('Let user select vertex...');
+		this.addComponent(new Gui.TextComponent('Triangle', t.props, t.hoverProps, function(x, y){
+			/*
+			editor.setSelectMode(new ModelEditorSelectModes.Vertex(editor, function(index){
+				editor.setSelected(new ModelEditorSelectedVertex(editor, index));
+				editor.setSelectMode(null);
+			}, function(){
+				editor.setSelectMode(null);
+			}));
+			*/
 		}), 0.05);
 	});
 	return toolbar;
@@ -4923,14 +4970,22 @@ const ModelViewMode = {};
 //source from file gui/menu/editor/model/viewmode/Abstract.js
 ModelViewMode.ABSTRACT = {
 	render : function(renderer, modelBuilder, cameraMatrix, editor){
+
+		// Caching
 		const parts = modelBuilder.parts;
 		const matrices = modelBuilder.matrices;
 		const positions = modelBuilder.positions;
 		const posLength = positions.length;
 		const points = new Array(posLength);
+
+		// Render all vertices
 		for (let index = 0; index < posLength; index += 3){
+
+			// Calculate space position
 			const vec3 = new Vectors.Vector3(positions[index], positions[index + 1], positions[index + 2]);
 			const vec4 = parts[matrices[index / 3]].matrix.transform(vec3);
+
+			// Calculate screen position
 			cameraMatrix.transform(vec4, vec4);
 			if (vec4.w < 0) {
 				vec4.w = -vec4.w;
@@ -4946,10 +5001,24 @@ ModelViewMode.ABSTRACT = {
 			z = -1 means that the vertex is at the near plane of the camera
 			*/
 
-			// Add support for circles later
+			// TODO Add support for circles later
 			if (points[index + 2] > - 1 && points[index + 2] < 1){
-				const size = 0.26 - (1 + points[index + 2]) / 8;
-				renderer.fillRect(editor.selected instanceof ModelEditorSelectedVertex && editor.selected.index === index / 3 ? 'rgb(200,0,0)' : 'rgb(0,0,0)', points[index] - size, points[index + 1] - size, points[index] + size, points[index + 1] + size);
+				const disZ = ((1 + points[index + 2]) / 2);
+				const size = 0.5 / (50 * vec4.w);
+
+				// Dirty code to determine color
+				let color = 'rgb(0,0,0)';
+				if (editor.selected instanceof ModelEditorSelectedVertex && editor.selected.index === index / 3){
+					color = 'rgb(200,0,0)';
+				}
+				if (editor.selectMode instanceof ModelEditorSelectModes.Vertex && editor.selectMode.index === index / 3){
+					color = 'rgb(200,200,0)';
+				}
+
+				const sizeY = size * window.innerWidth / window.innerHeight;
+
+				// Render the 'point' at its position with the right color
+				renderer.fillRect(color, points[index] - size, points[index + 1] - sizeY, points[index] + size, points[index + 1] + sizeY);
 			}
 		}
 	}
@@ -4963,8 +5032,9 @@ ModelViewMode.REAL = {
 };
 
 //source from file gui/menu/editor/model/selected/Vertex.js
-function ModelEditorSelectedVertex(modelBuilder, index){
-	this.model = modelBuilder;
+function ModelEditorSelectedVertex(editor, index){
+	this.editor = editor;
+	this.model = editor.builder;
 	this.index = index;
 }
 
@@ -4973,6 +5043,116 @@ ModelEditorSelectedVertex.prototype.move = function(dx, dy, dz){
 	this.model.positions[this.index * 3 + 1] += dy;
 	this.model.positions[this.index * 3 + 2] += dz;
 };
+
+ModelEditorSelectedVertex.prototype.onOpen = function(){
+	this.editor.setRightComponent(this.infoMenu);
+};
+
+ModelEditorSelectedVertex.prototype.infoMenu = new Gui.Menu('rgb(0,150,150)', function(){
+	// TODO Improve layout and add more structure for this
+	this.addComponent(new Gui.TextComponent('Move the vertex horizontally with the arrow keys', TextProperties.label()), 0, 0.86, 0.9, 0.9);
+	this.addComponent(new Gui.TextComponent('Move the vertex vertically with the up/down arrow key while holding shift', TextProperties.label()), 0, 0.76, 1, 0.8);
+});
+
+//source from file gui/menu/editor/model/selectmode/SelectMode.js
+const ModelEditorSelectModes = {};
+
+//source from file gui/menu/editor/model/selectmode/Vertex.js
+ModelEditorSelectModes.Vertex = function(editor, onEnter, onCancel){
+	this.editor = editor;
+	this.onEnter = onEnter;
+	this.onCancel = onCancel;
+};
+
+ModelEditorSelectModes.createDefault = function(editor){
+	return new ModelEditorSelectModes.Vertex(editor, function(index){
+		editor.setSelected(new ModelEditorSelectedVertex(editor, index));
+	});
+};
+
+ModelEditorSelectModes.Vertex.prototype.onOpen = function(){
+	this.editor.setRightComponent(this.onCancel ? this.infoMenuWithCancel : this.infoMenuWithoutCancel);
+};
+
+ModelEditorSelectModes.Vertex.prototype.click = function(x, y){
+	const camera = this.editor.camera;
+
+	// Calculate the click vector (the vector that points towards the clicked place if it starts at the camera position)
+	const clickYaw = toRadians(camera.getYaw() + (x - 0.5) * camera.getFOV());
+	const clickPitch = toRadians(camera.getPitch() - (y - 0.5) * camera.getFOV());
+	const cosPitch = Math.cos(clickPitch);
+	const clickVectorX = Math.sin(clickYaw) * cosPitch;
+	const clickVectorY = -Math.sin(clickPitch);
+	const clickVectorZ = -Math.cos(clickYaw) * cosPitch;
+
+	// Cache those variables because they will be accessed a lot
+	const cameraX = camera.getX();
+	const cameraY = camera.getY();
+	const cameraZ = camera.getZ();
+
+	const positions = this.editor.builder.positions;
+	const parts = this.editor.builder.parts;
+	const matrices = this.editor.builder.matrices;
+
+	// Use this to store the score (distanceSQ) of the point that is closest to the spot the user clicked on
+	let closestPointIndex = -1;
+	let closestPointScore = 100;
+
+	const length = positions.length;
+	for (let index = 0; index < length; index += 3){
+
+		// Calculate the space position of the point
+		const vec3 = new Vectors.Vector3(positions[index], positions[index + 1], positions[index + 2]);
+		const vec4 = parts[matrices[index / 3]].matrix.transform(vec3);
+
+		// Calculate the difference between the space position of the point and the camera position
+		let differenceX = vec4.x - cameraX;
+		let differenceY = vec4.y - cameraY;
+		let differenceZ = vec4.z - cameraZ;
+
+		// Normalize the difference
+		const totalDifference = Math.sqrt(differenceX * differenceX + differenceY * differenceY + differenceZ * differenceZ);
+		differenceX /= totalDifference;
+		differenceY /= totalDifference;
+		differenceZ /= totalDifference;
+
+		// Calculate the score of this point
+		const dx = differenceX - clickVectorX;
+		const dy = differenceY - clickVectorY;
+		const dz = differenceZ - clickVectorZ;
+
+		// Compare the score of this point with the score of the closest point
+		const score = dx * dx + dy * dy + dz * dz;
+		if (score < closestPointScore){
+			closestPointIndex = index / 3;
+			closestPointScore = score;
+		}
+	}
+
+	if (closestPointIndex !== -1){
+		this.onEnter(closestPointIndex);
+	}
+};
+
+ModelEditorSelectModes.Vertex.prototype.keyDown = function(key){
+	if (this.onCancel && key === 'Escape'){
+		this.onCancel();
+	}
+};
+
+ModelEditorSelectModes.Vertex.prototype.createInfoMenu = function(canCancel){
+	return new Gui.Menu('rgb(150,150,150)', function(){
+		// TODO Improve layout
+		this.addComponent(new Gui.TextComponent('Click on a vertex to select it.', TextProperties.label()), 0.03, 0.85, 0.8, 0.9);
+		this.addComponent(new Gui.TextComponent('Press enter to choose the vertex that is selected.', TextProperties.label()), 0.03, 0.75, 0.97, 0.8);
+		if (canCancel){
+			this.addComponent(new Gui.TextComponent('Press escape to cancel the vertex selection.', TextProperties.label()), 0.03, 0.45, 0.9, 0.5);
+		}
+	});
+};
+
+ModelEditorSelectModes.Vertex.prototype.infoMenuWithCancel = ModelEditorSelectModes.Vertex.prototype.createInfoMenu(true);
+ModelEditorSelectModes.Vertex.prototype.infoMenuWithoutCancel = ModelEditorSelectModes.Vertex.prototype.createInfoMenu(false);
 
 
 //source from file connection/Manager.js

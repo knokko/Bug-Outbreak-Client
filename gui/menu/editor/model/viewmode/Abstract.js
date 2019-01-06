@@ -1,13 +1,21 @@
 ModelViewMode.ABSTRACT = {
 	render : function(renderer, modelBuilder, cameraMatrix, editor){
+
+		// Caching
 		const parts = modelBuilder.parts;
 		const matrices = modelBuilder.matrices;
 		const positions = modelBuilder.positions;
 		const posLength = positions.length;
 		const points = new Array(posLength);
+
+		// Render all vertices
 		for (let index = 0; index < posLength; index += 3){
+
+			// Calculate space position
 			const vec3 = new Vectors.Vector3(positions[index], positions[index + 1], positions[index + 2]);
 			const vec4 = parts[matrices[index / 3]].matrix.transform(vec3);
+
+			// Calculate screen position
 			cameraMatrix.transform(vec4, vec4);
 			if (vec4.w < 0) {
 				vec4.w = -vec4.w;
@@ -23,10 +31,24 @@ ModelViewMode.ABSTRACT = {
 			z = -1 means that the vertex is at the near plane of the camera
 			*/
 
-			// Add support for circles later
+			// TODO Add support for circles later
 			if (points[index + 2] > - 1 && points[index + 2] < 1){
-				const size = 0.26 - (1 + points[index + 2]) / 8;
-				renderer.fillRect(editor.selected instanceof ModelEditorSelectedVertex && editor.selected.index === index / 3 ? 'rgb(200,0,0)' : 'rgb(0,0,0)', points[index] - size, points[index + 1] - size, points[index] + size, points[index + 1] + size);
+				const disZ = ((1 + points[index + 2]) / 2);
+				const size = 0.5 / (50 * vec4.w);
+
+				// Dirty code to determine color
+				let color = 'rgb(0,0,0)';
+				if (editor.selected instanceof ModelEditorSelectedVertex && editor.selected.index === index / 3){
+					color = 'rgb(200,0,0)';
+				}
+				if (editor.selectMode instanceof ModelEditorSelectModes.Vertex && editor.selectMode.index === index / 3){
+					color = 'rgb(200,200,0)';
+				}
+
+				const sizeY = size * window.innerWidth / window.innerHeight;
+
+				// Render the 'point' at its position with the right color
+				renderer.fillRect(color, points[index] - size, points[index + 1] - sizeY, points[index] + size, points[index + 1] + sizeY);
 			}
 		}
 	}

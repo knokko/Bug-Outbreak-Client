@@ -11,8 +11,8 @@ ModelEditorModelComponent.prototype.render = function(renderer){
 
 ModelEditorModelComponent.prototype.update = function(){
 	const k = this.pressedKeys;
-	const cameraSpeed = 0.01;
-	const objectSpeed = 0.01;
+	const cameraSpeed = 1;
+	const objectSpeed = 1;
 	if (k['p']) {
 		console.log('camera', this.editor.camera);
 	}

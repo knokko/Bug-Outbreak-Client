@@ -29,7 +29,7 @@ GuiModelEditor.prototype.tabHoverProperties = TextProperties.hoverTab('rgb(170,1
 GuiModelEditor.prototype.tabActiveProperties = TextProperties.tab('rgb(130,130,250)', 'rgb(100,100,250)');
 
 GuiModelEditor.prototype.addComponents = function(){
-	this.camera = new Gui3D.Camera(70, 0.01, 1000, this.state.getWidth(), this.state.getHeight(), 0, 0, 5, 0, 0, 0);
+	this.camera = new Gui3D.Camera(70, 1, 100000, this.state.getWidth(), this.state.getHeight(), 0, 0, 5, 0, 0, 0);
 
 	// The components responsible for rendering the current state of the model
 	this.addComponent(new Gui.BackgroundComponent(this.backgroundColor), 0.0, 0.9, 1.0, 1.0);

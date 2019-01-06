@@ -34,7 +34,7 @@ ModelViewMode.ABSTRACT = {
 			// TODO Add support for circles later
 			if (points[index + 2] > - 1 && points[index + 2] < 1){
 				const disZ = ((1 + points[index + 2]) / 2);
-				const size = 0.5 / (50 * vec4.w);
+				const size = 1 / vec4.w;
 
 				// Dirty code to determine color
 				let color = 'rgb(0,0,0)';

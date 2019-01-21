@@ -1,4 +1,6 @@
 function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
+
+	// Necessary because it inherits from Gui.Menu
 	this.didInit = false;
 	this.components = [];
 
@@ -18,6 +20,17 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 	this.viewMode = ModelViewMode.ABSTRACT;
 	this.selectMode = ModelEditorSelectModes.createDefault(this);
 	this.selected = null;
+
+	// Create the bound texture editor
+	this.texture = new Gui.Texture(32, 32);
+	const thisModelEditor = this;
+	const metb = ModelEditorToolbars;
+	this.imageEditor = new GuiImageEditor(this.texture, function(newTexture){
+		thisModelEditor.texture = newTexture.clone();
+		thisModelEditor.state.getManager().setMainComponent(thisModelEditor);
+	}, undefined, function(){
+		thisModelEditor.state.getManager().setMainComponent(thisModelEditor);
+	}, this.backgroundColor, metb.props, metb.hoverProps, metb.upperProps, metb.upperHoverProps, metb.upperActiveProps, metb.props, metb.hoverProps);
 }
 
 extendProtoType(Gui.Menu, GuiModelEditor);
@@ -33,13 +46,15 @@ GuiModelEditor.prototype.addComponents = function(){
 
 	// The components responsible for rendering the current state of the model
 	this.addComponent(new Gui.BackgroundComponent(this.backgroundColor), 0.0, 0.9, 1.0, 1.0);
-	this.addComponent(new ModelEditorModelComponent(this), 0.05, 0.05, 0.95, 0.9);
+	this.addComponent(new ModelEditorModelComponent(this), 0, 0, 0.7, 0.9);
 
 	// The toolbars
 	this.addFullComponent(ModelEditorToolbars.createFile(this));
 	this.addFullComponent(ModelEditorToolbars.createAdd(this));
 	this.addFullComponent(ModelEditorToolbars.createBind(this));
 	this.addFullComponent(ModelEditorToolbars.createSelect(this));
+
+	// TODO create a flexible image editor
 
 	// The component at the right of the screen
 	this.rightComponent = new Gui.WrapperComponent(new Gui.BackgroundComponent('rgb(150,150,150)'));
@@ -79,7 +94,7 @@ GuiModelEditor.prototype.setSelected = function(selected){
 		selected.onOpen();
 	}
 	this.state.getManager().markDirty();
-}
+};
 
 GuiModelEditor.prototype.setRightComponent = function(component){
 	this.rightComponent.setComponent(component);

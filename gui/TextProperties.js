@@ -2,7 +2,7 @@ const TextProperties = {
 	label : function(textColor, backgroundColor, font){
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
 		if(backgroundColor === undefined) backgroundColor = 'rgba(0,0,0,0)';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -13,6 +13,23 @@ const TextProperties = {
 			horAlignment : 'left',
 			verAlignment: 'down',
 			font : font
+		};
+	},
+	variable : function(textColor, backgroundColor, font){
+		if(textColor === undefined) textColor = 'rgb(0,0,0)';
+		if(backgroundColor === undefined) backgroundColor = 'rgba(0,0,0,0)';
+		if(font === undefined) font = '40px sans-serif';
+		return {
+			textColor : textColor,
+			backgroundColor : backgroundColor,
+			borderX : 0,
+			borderY : 0,
+			marginX : 0,
+			marginY : 0,
+			horAlignment : 'left',
+			verAlignment: 'down',
+			font : font,
+			resize: false
 		};
 	},
 	area : function(textColor, backgroundColor, borderColor, font){
@@ -35,7 +52,7 @@ const TextProperties = {
 		if(backgroundColor === undefined) backgroundColor = 'rgb(0,150,150)';
 		if(borderColor === undefined) borderColor = 'rgb(0,60,0)';
 		if(textColor === undefined) textColor = '#000000';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -52,7 +69,7 @@ const TextProperties = {
 		if(backgroundColor === undefined) backgroundColor = 'rgb(0,180,180)';
 		if(borderColor === undefined) borderColor = 'rgb(0,120,0)';
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -69,7 +86,7 @@ const TextProperties = {
 		if(backgroundColor === undefined) backgroundColor = 'rgb(0,180,180)';
 		if(borderColor === undefined) borderColor = 'rgb(0,120,0)';
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -86,7 +103,7 @@ const TextProperties = {
 		if(backgroundColor === undefined) backgroundColor = 'rgb(0,180,180)';
 		if(borderColor === undefined) borderColor = 'rgb(0,120,0)';
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -103,7 +120,7 @@ const TextProperties = {
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
 		if(backgroundColor === undefined) backgroundColor = 'rgb(130,130,130)';
 		if(borderColor === undefined) borderColor = 'rgb(30,30,30)';
-		if(font === undefined) font = '10px verdana';
+		if(font === undefined) font = '40px verdana';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -121,7 +138,7 @@ const TextProperties = {
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
 		if(backgroundColor === undefined) backgroundColor = 'rgb(255,255,255)';
 		if(borderColor === undefined) borderColor = 'rgb(90,90,90)';
-		if(font === undefined) font = '10px verdana';
+		if(font === undefined) font = '40px verdana';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -137,7 +154,7 @@ const TextProperties = {
 	},
 	listElement : function(backgroundColor, borderColor, textColor, font){
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			backgroundColor : backgroundColor,
 			borderColor : borderColor,

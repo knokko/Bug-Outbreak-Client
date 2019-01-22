@@ -1239,9 +1239,8 @@ const ImageFactory = {
 	createCharImage : function(char, props){
 		this.completeTextProperties(props);
 		const canvas = document.createElement('canvas');
-		const fontSize = this.getFontSize(props.font);
-		canvas.width = fontSize;
-		canvas.height = fontSize * 5 / 4;
+		canvas.width = 1;
+		canvas.height = 1;
 		let ctx = canvas.getContext('2d');
 		ctx.font = props.font;
 		// TODO finish this function
@@ -1254,7 +1253,7 @@ const ImageFactory = {
 			ctx.font = props.font;
 			ctx.fillStyle = props.textColor;
 
-			// The boundHeight / 3 is a guess because line metrics are experimental -_-
+			// The boundHeight * 4 / 5 is a guess because line metrics are experimental -_-
 			ctx.fillText(char, 0, boundHeight * 4 / 5);
 			const image = new Image();
 			image.src = canvas.toDataURL();
@@ -2680,11 +2679,15 @@ Gui.Menu.prototype.init = function(){
 };
 
 Gui.Menu.prototype.addComponent = function(component, minX, minY, maxX, maxY){
-	this.components.push(new Gui.MenuSubComponent(this, component, minX, minY, maxX, maxY));
+	const subComponent = new Gui.MenuSubComponent(this, component, minX, minY, maxX, maxY);
+	this.components.push(subComponent);
+	return subComponent;
 };
 
 Gui.Menu.prototype.addFullComponent = function(component){
-	this.components.push(new Gui.FullMenuSubComponent(this, component));
+	const subComponent = new Gui.FullMenuSubComponent(this, component);
+	this.components.push(subComponent);
+	return subComponent;
 };
 
 Gui.Menu.prototype.update = function(){
@@ -2753,6 +2756,11 @@ Gui.MenuSubComponent = function(menu, component, minX, minY, maxX, maxY){
 	this.menu = menu;
 	this.renderer = new Gui.StaticChildRenderer(null);
 	this.component = component;
+	this.setBounds(minX, minY, maxX, maxY);
+	this.initComponent();
+};
+
+Gui.MenuSubComponent.prototype.initComponent = function(){
 	const sub = this;
 	this.component.state = new Gui.DynamicChildComponentState(function() {
 		return sub.menu.state;
@@ -2765,11 +2773,15 @@ Gui.MenuSubComponent = function(menu, component, minX, minY, maxX, maxY){
 	}, function(){
 		return sub.maxY;
 	});
-	this.setBounds(minX, minY, maxX, maxY);
 	if(this.component.init){
 		this.component.init();
 	}
 };
+
+Gui.MenuSubComponent.prototype.setComponent = function(newComponent){
+	this.component = newComponent;
+	this.initComponent();
+}
 
 Gui.MenuSubComponent.prototype.render = function(renderer){
 	if(this.component.render){
@@ -2808,18 +2820,27 @@ Gui.FullMenuSubComponent = function(menu, component){
 	this.menu = menu;
 	this.renderer = new Gui.StaticChildRenderer(undefined);
 	this.component = component;
+	this.initComponent();
+};
+
+Gui.FullMenuSubComponent.prototype.render = function(renderer){
+	if(this.component.render){
+		this.component.render(renderer);
+	}
+};
+
+Gui.FullMenuSubComponent.prototype.setComponent = function(newComponent){
+	this.component = newComponent;
+	this.initComponent();
+};
+
+Gui.FullMenuSubComponent.prototype.initComponent = function(){
 	const sub = this;
 	this.component.state = new Gui.DynamicChildComponentState(function(){
 		return sub.menu.state;
 	}, this.getMinX, this.getMinY, this.getMaxX, this.getMaxY);
 	if(this.component.init){
 		this.component.init();
-	}
-};
-
-Gui.FullMenuSubComponent.prototype.render = function(renderer){
-	if(this.component.render){
-		this.component.render(renderer);
 	}
 };
 
@@ -4415,7 +4436,7 @@ const TextProperties = {
 	label : function(textColor, backgroundColor, font){
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
 		if(backgroundColor === undefined) backgroundColor = 'rgba(0,0,0,0)';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -4431,7 +4452,7 @@ const TextProperties = {
 	variable : function(textColor, backgroundColor, font){
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
 		if(backgroundColor === undefined) backgroundColor = 'rgba(0,0,0,0)';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -4465,7 +4486,7 @@ const TextProperties = {
 		if(backgroundColor === undefined) backgroundColor = 'rgb(0,150,150)';
 		if(borderColor === undefined) borderColor = 'rgb(0,60,0)';
 		if(textColor === undefined) textColor = '#000000';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -4482,7 +4503,7 @@ const TextProperties = {
 		if(backgroundColor === undefined) backgroundColor = 'rgb(0,180,180)';
 		if(borderColor === undefined) borderColor = 'rgb(0,120,0)';
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -4499,7 +4520,7 @@ const TextProperties = {
 		if(backgroundColor === undefined) backgroundColor = 'rgb(0,180,180)';
 		if(borderColor === undefined) borderColor = 'rgb(0,120,0)';
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -4516,7 +4537,7 @@ const TextProperties = {
 		if(backgroundColor === undefined) backgroundColor = 'rgb(0,180,180)';
 		if(borderColor === undefined) borderColor = 'rgb(0,120,0)';
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -4533,7 +4554,7 @@ const TextProperties = {
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
 		if(backgroundColor === undefined) backgroundColor = 'rgb(130,130,130)';
 		if(borderColor === undefined) borderColor = 'rgb(30,30,30)';
-		if(font === undefined) font = '10px verdana';
+		if(font === undefined) font = '40px verdana';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -4551,7 +4572,7 @@ const TextProperties = {
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
 		if(backgroundColor === undefined) backgroundColor = 'rgb(255,255,255)';
 		if(borderColor === undefined) borderColor = 'rgb(90,90,90)';
-		if(font === undefined) font = '10px verdana';
+		if(font === undefined) font = '40px verdana';
 		return {
 			textColor : textColor,
 			backgroundColor : backgroundColor,
@@ -4567,7 +4588,7 @@ const TextProperties = {
 	},
 	listElement : function(backgroundColor, borderColor, textColor, font){
 		if(textColor === undefined) textColor = 'rgb(0,0,0)';
-		if(font === undefined) font = '10px sans-serif';
+		if(font === undefined) font = '40px sans-serif';
 		return {
 			backgroundColor : backgroundColor,
 			borderColor : borderColor,
@@ -4699,7 +4720,7 @@ Game.menus.main.login = new Gui.Menu('rgb(0,150,120)', function(){
 		Game.connectionManager.auth.speaker.login1(menu.username.text, menu.password.text);
 		menu.password.setText('');
 	}), 0.2, 0.175, 0.4, 0.275);
-	this.addComponent(new Gui.DynamicTextComponent('No account yet?', TextProperties.label()), 0.6, 0.825, 0.75, 0.875);
+	this.addComponent(new Gui.TextComponent('No account yet?', TextProperties.label()), 0.6, 0.825, 0.75, 0.875);
 	this.addComponent(new Gui.TextComponent('Create Account', TextProperties.button('rgb(0,200,0)', 'rgb(0,70,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,120,0)'), function(){
 		Game.guiManager.setMainComponent(Game.menus.main.register);
 	}), 0.6, 0.7, 0.8, 0.8);
@@ -4977,6 +4998,11 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 	this.selectMode = ModelEditorSelectModes.createDefault(this);
 	this.selected = null;
 
+	// Use the same instance for every selected type
+	this.selects = {
+		vertex: new ModelEditorSelectedVertex(this)
+	};
+
 	// Create the bound texture editor
 	this.texture = new Gui.Texture(32, 32);
 	const thisModelEditor = this;
@@ -5232,7 +5258,8 @@ ModelEditorToolbars.createAdd = function(editor){
 		this.addComponent(new Gui.TextComponent('Vertex', t.props, t.hoverProps, function(x, y, button){
 			const cam = editor.camera;
 			const look = cam.getForwardVector();
-			editor.setSelected(new ModelEditorSelectedVertex(editor, editor.builder.addVertex(Math.round(cam.getX() + 100 * look.x), Math.round(cam.getY() + 100 * look.y), Math.round(cam.getZ() + 100 * look.z), 0, 0, 0)));
+			editor.selects.vertex.index = editor.builder.addVertex(Math.round(cam.getX() + 100 * look.x), Math.round(cam.getY() + 100 * look.y), Math.round(cam.getZ() + 100 * look.z), 0, 0, 0);
+			editor.setSelected(editor.selects.vertex);
 			editor.setViewMode(ModelViewMode.ABSTRACT);
 			editor.hasChanges = true;
 		}), 0.05);
@@ -5337,10 +5364,9 @@ ModelViewMode.REAL = {
 };
 
 //source from file gui/menu/editor/model/selected/Vertex.js
-function ModelEditorSelectedVertex(editor, index){
+function ModelEditorSelectedVertex(editor){
 	this.editor = editor;
-	this.model = editor.builder;
-	this.index = index;
+	this.index = -1;
 	this.infoMenu = this.createInfoMenu();
 }
 
@@ -5348,58 +5374,82 @@ ModelEditorSelectedVertex.prototype.move = function(dx, dy, dz){
 	this.model.positions[this.index * 3] += dx;
 	this.model.positions[this.index * 3 + 1] += dy;
 	this.model.positions[this.index * 3 + 2] += dz;
+	this.infoMenu.afterVertexMove();
 };
 
 ModelEditorSelectedVertex.prototype.onOpen = function(){
+	this.model = this.editor.builder;
 	this.editor.setRightComponent(this.infoMenu);
 	this.infoMenu.afterSelectVertex();
 };
 
-ModelEditorSelectedVertex.prototype.textComponent1 = new Gui.TextComponent('Move the vertex horizontally with the arrow keys', TextProperties.label());
-ModelEditorSelectedVertex.prototype.textComponent2 = new Gui.TextComponent('Move the vertex vertically with the up/down arrow key while holding shift', TextProperties.label());
-ModelEditorSelectedVertex.prototype.textComponent3 = new Gui.TextComponent('Part:', TextProperties.label());
-
 ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
 	const thisSelected = this;
 	return new Gui.Menu('rgb(0,150,150)', function(){
-		// TODO Improve layout and add more structure for this
-		this.addComponent(thisSelected.textComponent1, 0, 0.86, 0.9, 0.9);
-		this.addComponent(thisSelected.textComponent2, 0, 0.76, 1, 0.8);
-		this.addComponent(thisSelected.textComponent3, 0.05, 0.6, 0.35, 0.65);
 
-		// Add part combo box
-		const modelParts = thisSelected.model.parts;
-		const length = modelParts.length;
-		const partNames = new Array(length);
-		for (let index = 0; index < length; index++){
-			const part = modelParts[index];
-			partNames[index] = 'Part at (' + part.x + ',' + part.y + ',' + part.z + ') [' + index + ']';
-		}
-		this.addFullComponent(new Gui.ComboBox(partNames[thisSelected.model.matrices[thisSelected.index]], ModelEditorCombos.props, ModelEditorCombos.hoverProps, 0.08, 0.4, 0.9, 0.65, partNames, function(partName){
-			const startIndex = partName.indexOf('[') + 1;
-			const endIndex = partName.indexOf(']', startIndex);
-			const index = parseInt(partName.substring(startIndex, endIndex));
-			thisSelected.model.matrices[thisSelected.index] = index;
-		}));
+		// TODO Improve layout
+		this.addComponent(new Gui.TextComponent('Move the vertex horizontally with the arrow keys', TextProperties.label()), 0, 0.86, 0.9, 0.9);
+		this.addComponent(new Gui.TextComponent('Move the vertex vertically with the up/down arrow key while holding shift', TextProperties.label()), 0, 0.8, 1, 0.84);
+		this.addComponent(new Gui.TextComponent('Part:', TextProperties.label()), 0.05, 0.74, 0.35, 0.78);
+
+		// Vertex position
+		this.addComponent(new Gui.TextComponent('Position (relative):', TextProperties.label()), 0.05, 0.6, 0.4, 0.64);
+		this.addComponent(new Gui.TextComponent('x:', TextProperties.label()), 0.1, 0.54, 0.2, 0.58);
+		this.addComponent(new Gui.TextComponent('y:', TextProperties.label()), 0.1, 0.48, 0.2, 0.52);
+		this.addComponent(new Gui.TextComponent('z:', TextProperties.label()), 0.1, 0.42, 0.2, 0.46);
+		this.positionX = new Gui.DynamicTextComponent('', TextProperties.variable());
+		this.positionY = new Gui.DynamicTextComponent('', TextProperties.variable());
+		this.positionZ = new Gui.DynamicTextComponent('', TextProperties.variable());
+		this.addComponent(this.positionX, 0.25, 0.54, 0.4, 0.58);
+		this.addComponent(this.positionY, 0.25, 0.48, 0.4, 0.52);
+		this.addComponent(this.positionZ, 0.25, 0.42, 0.4, 0.46);
 
 		// Add texture coordinates and link to texture edit
-		this.addComponent(new Gui.TextComponent('Texture coordinates:', TextProperties.label()), 0.05, 0.4, 0.8, 0.45);
-		this.addComponent(new Gui.TextComponent('x:', TextProperties.label()), 0.1, 0.35, 0.2, 0.4);
-		this.addComponent(new Gui.TextComponent('y:', TextProperties.label()), 0.1, 0.3, 0.2, 0.35);
+		this.addComponent(new Gui.TextComponent('Texture coordinates:', TextProperties.label()), 0.05, 0.36, 0.8, 0.4);
+		this.addComponent(new Gui.TextComponent('x:', TextProperties.label()), 0.1, 0.3, 0.2, 0.34);
+		this.addComponent(new Gui.TextComponent('y:', TextProperties.label()), 0.1, 0.24, 0.2, 0.28);
 
-		this.textureX = new Gui.TextComponent('', TextProperties.variable());
-		this.textureY = new Gui.TextComponent('', TextProperties.variable());
-		this.addComponent(this.textureX, 0.25, 0.35, 0.4, 0.4);
-		this.addComponent(this.textureY, 0.25, 0.3, 0.4, 0.35);
+		this.textureX = new Gui.DynamicTextComponent('', TextProperties.variable());
+		this.textureY = new Gui.DynamicTextComponent('', TextProperties.variable());
+		this.addComponent(this.textureX, 0.25, 0.3, 0.4, 0.34);
+		this.addComponent(this.textureY, 0.25, 0.24, 0.4, 0.28);
 		this.addComponent(new Gui.TextComponent('Edit texture', ModelEditorToolbars.props, ModelEditorToolbars.hoverProps, function(x, y){
 			thisSelected.editor.state.getManager().setMainComponent(thisSelected.editor.imageEditor);
 			thisSelected.editor.imageEditor.setImage(thisSelected.editor.texture);
-		}), 0.3, 0.2, 0.7, 0.3);
+		}), 0.3, 0.1, 0.7, 0.2);
 
 		// Functions to update content dynamically
 		this.afterSelectVertex = function(){
 			this.textureX.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2]);
 			this.textureY.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2 + 1]);
+			this.afterVertexMove();
+			this.afterPartEdit();
+		};
+		this.afterVertexMove = function(){
+			this.positionX.setText('' + thisSelected.model.positions[thisSelected.index * 3]);
+			this.positionY.setText('' + thisSelected.model.positions[thisSelected.index * 3 + 1]);
+			this.positionZ.setText('' + thisSelected.model.positions[thisSelected.index * 3 + 2]);
+		};
+		this.afterPartEdit = function(){
+			// Add part combo box
+			const modelParts = thisSelected.model.parts;
+			const length = modelParts.length;
+			const partNames = new Array(length);
+			for (let index = 0; index < length; index++){
+				const part = modelParts[index];
+				partNames[index] = 'Part at (' + part.x + ',' + part.y + ',' + part.z + ') [' + index + ']';
+			}
+			const partSelectComponent = new Gui.ComboBox(partNames[thisSelected.model.matrices[thisSelected.index]], ModelEditorCombos.props, ModelEditorCombos.hoverProps, 0.08, 0.53, 0.9, 0.78, partNames, function(partName){
+				const startIndex = partName.indexOf('[') + 1;
+				const endIndex = partName.indexOf(']', startIndex);
+				const index = parseInt(partName.substring(startIndex, endIndex));
+				thisSelected.model.matrices[thisSelected.index] = index;
+			});
+			if (this.partSelect === undefined){
+				this.partSelect = this.addFullComponent(partSelectComponent);
+			} else {
+				this.partSelect.setComponent(partSelectComponent);
+			}
 		};
 	});
 };
@@ -5416,7 +5466,8 @@ ModelEditorSelectModes.Vertex = function(editor, onEnter, onCancel){
 
 ModelEditorSelectModes.createDefault = function(editor){
 	return new ModelEditorSelectModes.Vertex(editor, function(index){
-		editor.setSelected(new ModelEditorSelectedVertex(editor, index));
+		editor.selects.vertex.index = index;
+		editor.setSelected(editor.selects.vertex);
 	});
 };
 

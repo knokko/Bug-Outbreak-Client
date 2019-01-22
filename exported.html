@@ -1139,6 +1139,10 @@ const ImageFactory = {
 		body.removeChild(dummy);
 		return result;
 	},
+	getFontSize : function(font){
+		const indexRight = font.indexOf('px');
+		return parseInt(font.substring(font.lastIndexOf(' ', indexRight), indexRight));
+	},
 	multiplyFontSize : function(context, factor) {
 		const font = context.font;
 		const indexRight = font.indexOf('px');
@@ -1232,6 +1236,37 @@ const ImageFactory = {
 		image.src = canvas.toDataURL();
 		return image;
 	},
+	createCharImage : function(char, props){
+		this.completeTextProperties(props);
+		const canvas = document.createElement('canvas');
+		const fontSize = this.getFontSize(props.font);
+		canvas.width = fontSize;
+		canvas.height = fontSize * 5 / 4;
+		let ctx = canvas.getContext('2d');
+		ctx.font = props.font;
+		// TODO finish this function
+		const boundWidth = Math.ceil(ctx.measureText(char).width);
+		const boundHeight = Math.ceil(ImageFactory.determineFontHeight('font: ' + props.font + ';'));
+		if (boundWidth > 0 && boundHeight > 0){
+			canvas.width = boundWidth;
+			canvas.height = boundHeight;
+			ctx = canvas.getContext('2d');
+			ctx.font = props.font;
+			ctx.fillStyle = props.textColor;
+
+			// The boundHeight / 3 is a guess because line metrics are experimental -_-
+			ctx.fillText(char, 0, boundHeight * 4 / 5);
+			const image = new Image();
+			image.src = canvas.toDataURL();
+			return image;
+		} else {
+			canvas.width = 1;
+			canvas.height = 1;
+			const image = new Image();
+			image.src = canvas.toDataURL();
+			return image;
+		}
+	},
 	createTextAreaImage : function(text, props, width, height){
 		this.completeTextProperties(props);
 		const canvas = document.createElement('canvas');
@@ -1290,10 +1325,6 @@ const ImageFactory = {
 				currentLength += spaceWidth;
 			}
 		}
-		console.log('text is ', text);
-		console.log('words is ', words);
-		console.log('so lines is ', lines);
-		console.log('since wordLengths is ', wordLengths);
 		const boundHeight = ImageFactory.determineFontHeight('font: ' + context.font + ';');
 		let textY = minTY + Math.round(boundHeight * ImageFactory.ASSENT_FACTOR);
 		const linesLength = lines.length;
@@ -1439,6 +1470,7 @@ Gui.Manager.prototype.convertKey = function(key){
 }
 
 Gui.Manager.prototype.start = function(){
+	this.charBuilder = new Gui.CanvasCharBuilder();
 	this.renderer = new Gui.CanvasRenderer();
 	this.renderer.start();
 	const manager = this;
@@ -1462,6 +1494,11 @@ Gui.Manager.prototype.start = function(){
 	});
 	window.addEventListener('mouseup', function(event){
 		manager.mouseDown = false;
+	});
+	window.addEventListener('wheel', function(event){
+		if (manager.mainComponent.scroll){
+			manager.mainComponent.scroll(event.deltaY / 100);
+		}
 	});
 	window.addEventListener('mouseenter', function(event){
 		manager.mouseX = event.pageX / window.innerWidth;
@@ -1616,20 +1653,45 @@ Gui.Texture.prototype.render = function(context, minX, minY){
 	context.putImageData(imageData, minX, minY);
 };
 
-Gui.Texture.prototype.toImageData = function(data, minX, minY, maxX, maxY, dataWidth){
+Gui.Texture.prototype.toImageData = function(data, minX, minY, maxX, maxY, dataWidth, ownMinX, ownMinY, ownMaxX, ownMaxY){
+	if (ownMinX === undefined) ownMinX = 0;
+	if (ownMinY === undefined) ownMinY = 0;
+	if (ownMaxX === undefined) ownMaxX = this.width - 1;
+	if (ownMaxY === undefined) ownMaxY = this.height - 1;
+	const ownWidth = ownMaxX - ownMinX + 1;
+	const ownHeight = ownMaxY - ownMinY + 1;
 	const width = maxX - minX + 1;
 	const height = maxY - minY + 1;
 	for(let y = 0; y < height; y++){
 		for(let x = 0; x < width; x++){
 			let dataIndex = 4 * (minX + x + (minY + y) * dataWidth);
-			let ownIndex = 4 * (Math.floor(x / width * this.width) + this.width * Math.floor(y / height * this.height));
+			let ownIndex = 4 * (Math.floor(ownMinX + x / width * ownWidth) + this.width * Math.floor(ownMinY + y / height * ownHeight));
 			data[dataIndex++] = this.data[ownIndex++];
 			data[dataIndex++] = this.data[ownIndex++];
 			data[dataIndex++] = this.data[ownIndex++];
 			data[dataIndex] = this.data[ownIndex];
 		}
 	}
-}
+};
+
+//library source from Gui/CanvasCharBuilder.js
+Gui.CanvasCharBuilder = function(){
+	this.charMap = {};
+};
+
+Gui.CanvasCharBuilder.prototype.createKey = function(char, props){
+	return char + ':' + props.textColor + ':' + props.font;
+};
+
+Gui.CanvasCharBuilder.prototype.getTexture = function(char, props){
+	const key = this.createKey(char, props);
+	let value = this.charMap[key];
+	if (value === undefined){
+		value = ImageFactory.createCharImage(char, props);
+		this.charMap[key] = value;
+	}
+	return value;
+};
 
 //library source from Gui/render/CanvasRenderer.js
 Gui.CanvasRenderer = function(){
@@ -1679,14 +1741,14 @@ Gui.CanvasRenderer.prototype.renderImage = function(image, minX, minY, maxX, max
 	}
 };
 
-Gui.CanvasRenderer.prototype.renderTexture = function(texture, minX, minY, maxX, maxY){
+Gui.CanvasRenderer.prototype.renderTexture = function(texture, minX, minY, maxX, maxY, textureMinX, textureMinY, textureMaxX, textureMaxY){
 	if(maxX >= 0 && maxY >= 0 && minX <= 1 && minY <= 1){
 		const minPX = Math.round(minX * this.width);
 		const minPY = Math.round((1 - maxY) * this.height);
 		const maxPX = Math.round(maxX * this.width);
 		const maxPY = Math.round((1 - minY) * this.height);
 		const imageData = this.context.createImageData(maxPX - minPX + 1, maxPY - minPY + 1);
-		texture.toImageData(imageData.data, minPX, minPY, maxPX, maxPY, maxPX - minPX + 1);
+		texture.toImageData(imageData.data, 0, 0, maxPX - minPX, maxPY - minPY, maxPX - minPX + 1, textureMinX, textureMinY, textureMaxX, textureMaxY);
 		this.context.putImageData(imageData, minPX, minPY);
 	}
 }
@@ -1721,8 +1783,8 @@ Gui.StaticChildRenderer.prototype.renderImage = function(image, minX, minY, maxX
 	this.parent.renderImage(image, this.minX + this.width * minX, this.minY + this.height * minY, this.minX + this.width * maxX, this.minY + this.height * maxY);
 };
 
-Gui.StaticChildRenderer.prototype.renderTexture = function(image, minX, minY, maxX, maxY){
-	this.parent.renderTexture(image, this.minX + this.width * minX, this.minY + this.height * minY, this.minX + this.width * maxX, this.minY + this.height * maxY);
+Gui.StaticChildRenderer.prototype.renderTexture = function(image, minX, minY, maxX, maxY, textureMinX, textureMinY, textureMaxX, textureMaxY){
+	this.parent.renderTexture(image, this.minX + this.width * minX, this.minY + this.height * minY, this.minX + this.width * maxX, this.minY + this.height * maxY, textureMinX, textureMinY, textureMaxX, textureMaxY);
 };
 
 //library source from Gui/render/DynamicChildRenderer.js
@@ -1758,8 +1820,8 @@ Gui.DynamicChildRenderer.prototype.renderImage = function(image, minX, minY, max
 	this.parent().renderImage(image, this.minX() + this.width() * minX, this.minY() + this.height() * minY, this.minX() + this.width() * maxX, this.minY() + this.height() * maxY);
 };
 
-Gui.DynamicChildRenderer.prototype.renderTexture = function(image, minX, minY, maxX, maxY){
-	this.parent().renderTexture(image, this.minX() + this.width() * minX, this.minY() + this.height() * minY, this.minX() + this.width() * maxX, this.minY() + this.height() * maxY);
+Gui.DynamicChildRenderer.prototype.renderTexture = function(image, minX, minY, maxX, maxY, textureMinX, textureMinY, textureMaxX, textureMaxY){
+	this.parent().renderTexture(image, this.minX() + this.width() * minX, this.minY() + this.height() * minY, this.minX() + this.width() * maxX, this.minY() + this.height() * maxY, textureMinX, textureMinY, textureMaxX, textureMaxY);
 };
 
 //library source from Gui/component/state/ParentComponentState.js
@@ -2245,6 +2307,134 @@ Gui.PasswordInputComponent.prototype.getMasked = function(text){
 	return masked;
 };
 
+//library source from Gui/component/DynamicTextComponent.js
+Gui.DynamicTextComponent = function(text, props, hoverProps, onClick){
+	this.text = new Gui.DynamicSingleText(text, props);
+	if (hoverProps){
+		this.hoverText = new Gui.DynamicSingleText(text, hoverProps);
+	} else {
+		this.hoverText = this.text;
+	}
+	this.click = onClick;
+};
+
+Gui.DynamicTextComponent.prototype.init = function(){
+	this.text.state = this.state;
+	this.text.init();
+	if (this.hoverText !== this.text){
+		this.hoverText.state = this.state;
+		this.hoverText.init();
+	}
+};
+
+Gui.DynamicTextComponent.prototype.setText = function(newText){
+	this.text.setText(newText);
+	if (this.hoverText !== this.text){
+		this.hoverText.setText(newText);
+	}
+};
+
+Gui.DynamicTextComponent.prototype.setProps = function(newProps){
+	this.text.setProps(newProps);
+};
+
+Gui.DynamicTextComponent.prototype.setHoverProps = function(newHoverProps){
+	if (this.text !== this.hoverText){
+		this.hoverText.setProps(newHoverProps);
+	}
+};
+
+Gui.DynamicTextComponent.prototype.render = function(renderer){
+	if (this.state.isMouseOver()){
+		this.hoverText.render(renderer);
+	} else {
+		this.text.render(renderer);
+	}
+};
+
+Gui.DynamicSingleText = function(text, props){
+	this.text = text;
+	this.props = props;
+};
+
+Gui.DynamicSingleText.prototype.updateTextureWidths = function(){
+	let totalWidth = 0;
+	const length = this.text.length;
+	for (let index = 0; index < length; index++){
+		if (this.textures[index] && this.textures[index].complete){
+			totalWidth += this.textures[index].width;
+		} else {
+			return;
+		}
+	}
+	if (totalWidth !== 0){
+		this.xCoords = new Array(length + 1);
+		let x = this.props.borderX + this.props.marginX;
+		const widthFactor = 1 - 2 * (this.props.borderX + this.props.marginX);
+		for (let index = 0; index < length; index++){
+			this.xCoords[index] = x;
+			x += widthFactor * this.textures[index].width / totalWidth;
+			this.xCoords[index + 1] = x;
+		}
+		this.state.getManager().markDirty();
+	} else {
+		this.xCoords = null;
+	}
+}
+
+Gui.DynamicSingleText.prototype.updateTextures = function(){
+	const length = this.text.length;
+	this.textures = new Array(length);
+	for (let index = 0; index < length; index++){
+		this.textures[index] = this.state.getManager().charBuilder.getTexture(this.text.charAt(index), this.props);
+		this.markOnComplete(this.textures[index]);
+	}
+
+	this.minTextY = this.props.borderY + this.props.marginY;
+	this.maxTextY = 1 - this.minTextY;
+};
+
+Gui.DynamicSingleText.prototype.markOnComplete = function(image){
+	if (image) {
+		const component = this;
+		if (image.complete) {
+			this.updateTextureWidths();
+		} else {
+			image.addEventListener('load', function(){
+				component.updateTextureWidths();
+			});
+		}
+	}
+};
+
+Gui.DynamicSingleText.prototype.init = function(){
+	this.updateTextures();
+};
+
+Gui.DynamicSingleText.prototype.setText = function(newText){
+	this.text = newText;
+	this.updateTextures();
+};
+
+Gui.DynamicSingleText.prototype.setProps = function(newProps){
+	this.props = newProps;
+	this.updateTextures();
+};
+
+Gui.DynamicSingleText.prototype.render = function(renderer){
+	renderer.clear(this.props.backgroundColor);
+	renderer.fillRect(this.props.borderColor, 0, 0, 1, this.props.borderY);
+	renderer.fillRect(this.props.borderColor, 0, 0, this.props.borderX, 1);
+	renderer.fillRect(this.props.borderColor, 0, 1 - this.props.borderY, 1, 1);
+	renderer.fillRect(this.props.borderColor, 1 - this.props.borderX, 0, 1, 1);
+	if (this.xCoords) {
+		for (let index = 0; index < this.textures.length; index++) {
+			console.log('complete is ' + this.textures[index].complete + ' for index ' + index);
+			renderer.renderImage(this.textures[index], this.xCoords[index], this.minTextY, this.xCoords[index + 1], this.maxTextY);
+		}
+	}
+};
+
 //library source from Gui/component/toolbar/Toolbar.js
 Gui.Toolbar = function(upperText, upperProps, upperHoverProps, upperActiveProps, upperComponentHeight, minX, maxX, upperMaxX, addComponents){
 	this.minX = minX;
@@ -2261,6 +2451,7 @@ Gui.Toolbar = function(upperText, upperProps, upperHoverProps, upperActiveProps,
 		this.active = false;
 		this.state.getManager().markDirty();
 	};
+	this.upperComponent.active = false;
 	this.didInit = false;
 	this.addComponents = addComponents;
 	this.components = [];
@@ -2404,6 +2595,75 @@ Gui.ToolbarSubComponent.prototype.render = function(renderer){
 	}
 };
 
+//library source from Gui/component/ComboBox.js
+Gui.ComboBox = function(initialValue, props, hoverProps, heightPerValue, minX, maxX, maxY, values, onSelect){
+
+	// Store bounds
+	this.minX = minX;
+	this.maxX = maxX;
+	this.upperY = maxY - heightPerValue;
+	this.heightPerValue = heightPerValue;
+
+	// Create upper component
+	this.upperComponent = new Gui.TextComponent(initialValue, props, hoverProps, function(){
+		this.active = !this.active;
+		this.state.getManager().markDirty();
+	});
+	this.upperComponent.clickOut = function(button){
+		this.active = false;
+		this.state.getManager().markDirty();
+	};
+	this.upperComponent.isActive = function(){
+		return this.active;
+	};
+	this.upperComponent.active = false;
+
+	// Add the components during the init
+	this.props = props;
+	this.hoverProps = hoverProps;
+	this.onSelect = onSelect;
+	this.values = values;
+	this.didInit = false;
+	this.components = [];
+};
+
+extendProtoType(Gui.Toolbar, Gui.ComboBox);
+
+Gui.ComboBox.prototype.init = function(){
+
+	// Only add the components once
+	if (!this.didInit){
+		const y = this.upperY;
+		const height = this.heightPerValue;
+		this.addComponent(this.upperComponent, height);
+
+		// The upper component is special
+		const subComponent = this.components[0];
+		const minX = this.minX;
+		const maxX = this.maxX;
+		subComponent.maxX = this.maxX;
+		subComponent.renderer.setBounds(minX, y, maxX, y + height);
+		subComponent.component.state.setBounds(minX, y, maxX, y + height);
+		subComponent.minY = y;
+		subComponent.maxY = y + height;
+		this.upperY = y;
+
+		// Now add the other components
+		const values = this.values;
+		const length = values.length;
+		const props = this.props;
+		const hoverProps = this.hoverProps;
+		const thisComboBox = this;
+		for (let index = 0; index < length; index++){
+			this.addComponent(new Gui.TextComponent(values[index], props, hoverProps, function(){
+				thisComboBox.upperComponent.setText(this.text);
+				thisComboBox.onSelect(this.text);
+			}), height);
+		}
+		this.didInit = true;
+	}
+};
+
 //library source from Gui/menu/Menu.js
 Gui.Menu = function(backgroundColor, addComponents){
 	this.backgroundColor = backgroundColor;
@@ -2455,6 +2715,14 @@ Gui.Menu.prototype.clickOut = function(button){
 		}
 	}
 };
+
+Gui.Menu.prototype.scroll = function(amount){
+	for (let index in this.components){
+		if (this.components[index].component.scroll){
+			this.components[index].component.scroll(amount);
+		}
+	}
+}
 
 Gui.Menu.prototype.keyType = function(key){
 	for(let index in this.components){
@@ -3689,22 +3957,22 @@ Matrices.Matrix4.prototype.invert = function(dest){
 	const determinant = this.determinant();
 	if(determinant !== 0){
 		const determinant_inv = 1 / determinant;
-		const t00 =  determinant3x3(this.m11, this.m12, this.m13, this.m21, this.m22, this.m23, this.m31, this.m32, this.m33);
-		const t01 = -determinant3x3(this.m10, this.m12, this.m13, this.m20, this.m22, this.m23, this.m30, this.m32, this.m33);
-		const t02 =  determinant3x3(this.m10, this.m11, this.m13, this.m20, this.m21, this.m23, this.m30, this.m31, this.m33);
-		const t03 = -determinant3x3(this.m10, this.m11, this.m12, this.m20, this.m21, this.m22, this.m30, this.m31, this.m32);
-		const t10 = -determinant3x3(this.m01, this.m02, this.m03, this.m21, this.m22, this.m23, this.m31, this.m32, this.m33);
-		const t11 =  determinant3x3(this.m00, this.m02, this.m03, this.m20, this.m22, this.m23, this.m30, this.m32, this.m33);
-		const t12 = -determinant3x3(this.m00, this.m01, this.m03, this.m20, this.m21, this.m23, this.m30, this.m31, this.m33);
-		const t13 =  determinant3x3(this.m00, this.m01, this.m02, this.m20, this.m21, this.m22, this.m30, this.m31, this.m32);
-		const t20 =  determinant3x3(this.m01, this.m02, this.m03, this.m11, this.m12, this.m13, this.m31, this.m32, this.m33);
-		const t21 = -determinant3x3(this.m00, this.m02, this.m03, this.m10, this.m12, this.m13, this.m30, this.m32, this.m33);
-		const t22 =  determinant3x3(this.m00, this.m01, this.m03, this.m10, this.m11, this.m13, this.m30, this.m31, this.m33);
-		const t23 = -determinant3x3(this.m00, this.m01, this.m02, this.m10, this.m11, this.m12, this.m30, this.m31, this.m32);
-		const t30 = -determinant3x3(this.m01, this.m02, this.m03, this.m11, this.m12, this.m13, this.m21, this.m22, this.m23);
-		const t31 =  determinant3x3(this.m00, this.m02, this.m03, this.m10, this.m12, this.m13, this.m20, this.m22, this.m23);
-		const t32 = -determinant3x3(this.m00, this.m01, this.m03, this.m10, this.m11, this.m13, this.m20, this.m21, this.m23);
-		const t33 =  determinant3x3(this.m00, this.m01, this.m02, this.m10, this.m11, this.m12, this.m20, this.m21, this.m22);
+		const t00 =  this.determinant3x3(this.m11, this.m12, this.m13, this.m21, this.m22, this.m23, this.m31, this.m32, this.m33);
+		const t01 = -this.determinant3x3(this.m10, this.m12, this.m13, this.m20, this.m22, this.m23, this.m30, this.m32, this.m33);
+		const t02 =  this.determinant3x3(this.m10, this.m11, this.m13, this.m20, this.m21, this.m23, this.m30, this.m31, this.m33);
+		const t03 = -this.determinant3x3(this.m10, this.m11, this.m12, this.m20, this.m21, this.m22, this.m30, this.m31, this.m32);
+		const t10 = -this.determinant3x3(this.m01, this.m02, this.m03, this.m21, this.m22, this.m23, this.m31, this.m32, this.m33);
+		const t11 =  this.determinant3x3(this.m00, this.m02, this.m03, this.m20, this.m22, this.m23, this.m30, this.m32, this.m33);
+		const t12 = -this.determinant3x3(this.m00, this.m01, this.m03, this.m20, this.m21, this.m23, this.m30, this.m31, this.m33);
+		const t13 =  this.determinant3x3(this.m00, this.m01, this.m02, this.m20, this.m21, this.m22, this.m30, this.m31, this.m32);
+		const t20 =  this.determinant3x3(this.m01, this.m02, this.m03, this.m11, this.m12, this.m13, this.m31, this.m32, this.m33);
+		const t21 = -this.determinant3x3(this.m00, this.m02, this.m03, this.m10, this.m12, this.m13, this.m30, this.m32, this.m33);
+		const t22 =  this.determinant3x3(this.m00, this.m01, this.m03, this.m10, this.m11, this.m13, this.m30, this.m31, this.m33);
+		const t23 = -this.determinant3x3(this.m00, this.m01, this.m02, this.m10, this.m11, this.m12, this.m30, this.m31, this.m32);
+		const t30 = -this.determinant3x3(this.m01, this.m02, this.m03, this.m11, this.m12, this.m13, this.m21, this.m22, this.m23);
+		const t31 =  this.determinant3x3(this.m00, this.m02, this.m03, this.m10, this.m12, this.m13, this.m20, this.m22, this.m23);
+		const t32 = -this.determinant3x3(this.m00, this.m01, this.m03, this.m10, this.m11, this.m13, this.m20, this.m21, this.m23);
+		const t33 =  this.determinant3x3(this.m00, this.m01, this.m02, this.m10, this.m11, this.m12, this.m20, this.m21, this.m22);
 		dest.m00 = t00 * determinant_inv;
 		dest.m11 = t11 * determinant_inv;
 		dest.m22 = t22 * determinant_inv;
@@ -4160,6 +4428,23 @@ const TextProperties = {
 			font : font
 		};
 	},
+	variable : function(textColor, backgroundColor, font){
+		if(textColor === undefined) textColor = 'rgb(0,0,0)';
+		if(backgroundColor === undefined) backgroundColor = 'rgba(0,0,0,0)';
+		if(font === undefined) font = '10px sans-serif';
+		return {
+			textColor : textColor,
+			backgroundColor : backgroundColor,
+			borderX : 0,
+			borderY : 0,
+			marginX : 0,
+			marginY : 0,
+			horAlignment : 'left',
+			verAlignment: 'down',
+			font : font,
+			resize: false
+		};
+	},
 	area : function(textColor, backgroundColor, borderColor, font){
 		if (textColor === undefined) textColor = 'rgb(0,0,0)';
 		if (backgroundColor === undefined) backgroundColor = 'rgba(0,0,0,0)';
@@ -4414,7 +4699,7 @@ Game.menus.main.login = new Gui.Menu('rgb(0,150,120)', function(){
 		Game.connectionManager.auth.speaker.login1(menu.username.text, menu.password.text);
 		menu.password.setText('');
 	}), 0.2, 0.175, 0.4, 0.275);
-	this.addComponent(new Gui.TextComponent('No account yet?', TextProperties.label()), 0.6, 0.825, 0.75, 0.875);
+	this.addComponent(new Gui.DynamicTextComponent('No account yet?', TextProperties.label()), 0.6, 0.825, 0.75, 0.875);
 	this.addComponent(new Gui.TextComponent('Create Account', TextProperties.button('rgb(0,200,0)', 'rgb(0,70,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,120,0)'), function(){
 		Game.guiManager.setMainComponent(Game.menus.main.register);
 	}), 0.6, 0.7, 0.8, 0.8);
@@ -4670,6 +4955,8 @@ Game.menus.account.overview = new Gui.Menu('rgb(0,150,120)', function(){
 
 //source from file gui/menu/editor/model/ModelEditor.js
 function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
+
+	// Necessary because it inherits from Gui.Menu
 	this.didInit = false;
 	this.components = [];
 
@@ -4689,6 +4976,17 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 	this.viewMode = ModelViewMode.ABSTRACT;
 	this.selectMode = ModelEditorSelectModes.createDefault(this);
 	this.selected = null;
+
+	// Create the bound texture editor
+	this.texture = new Gui.Texture(32, 32);
+	const thisModelEditor = this;
+	const metb = ModelEditorToolbars;
+	this.imageEditor = new GuiImageEditor(this.texture, function(newTexture){
+		thisModelEditor.texture = newTexture.clone();
+		thisModelEditor.state.getManager().setMainComponent(thisModelEditor);
+	}, undefined, function(){
+		thisModelEditor.state.getManager().setMainComponent(thisModelEditor);
+	}, this.backgroundColor, metb.props, metb.hoverProps, metb.upperProps, metb.upperHoverProps, metb.upperActiveProps, metb.props, metb.hoverProps);
 }
 
 extendProtoType(Gui.Menu, GuiModelEditor);
@@ -4700,17 +4998,19 @@ GuiModelEditor.prototype.tabHoverProperties = TextProperties.hoverTab('rgb(170,1
 GuiModelEditor.prototype.tabActiveProperties = TextProperties.tab('rgb(130,130,250)', 'rgb(100,100,250)');
 
 GuiModelEditor.prototype.addComponents = function(){
-	this.camera = new Gui3D.Camera(70, 0.01, 1000, this.state.getWidth(), this.state.getHeight(), 0, 0, 5, 0, 0, 0);
+	this.camera = new Gui3D.Camera(70, 1, 100000, this.state.getWidth(), this.state.getHeight(), 0, 0, 5, 0, 0, 0);
 
 	// The components responsible for rendering the current state of the model
 	this.addComponent(new Gui.BackgroundComponent(this.backgroundColor), 0.0, 0.9, 1.0, 1.0);
-	this.addComponent(new ModelEditorModelComponent(this), 0.05, 0.05, 0.95, 0.9);
+	this.addComponent(new ModelEditorModelComponent(this), 0, 0, 0.7, 0.9);
 
 	// The toolbars
 	this.addFullComponent(ModelEditorToolbars.createFile(this));
 	this.addFullComponent(ModelEditorToolbars.createAdd(this));
 	this.addFullComponent(ModelEditorToolbars.createBind(this));
 	this.addFullComponent(ModelEditorToolbars.createSelect(this));
+
+	// TODO create a flexible image editor
 
 	// The component at the right of the screen
 	this.rightComponent = new Gui.WrapperComponent(new Gui.BackgroundComponent('rgb(150,150,150)'));
@@ -4750,7 +5050,7 @@ GuiModelEditor.prototype.setSelected = function(selected){
 		selected.onOpen();
 	}
 	this.state.getManager().markDirty();
-}
+};
 
 GuiModelEditor.prototype.setRightComponent = function(component){
 	this.rightComponent.setComponent(component);
@@ -4772,6 +5072,11 @@ const ModelEditorPopups = {
 	backgroundColor : 'rgb(25, 0, 100)'
 };
 
+const ModelEditorCombos = {
+	props: TextProperties.listElement('rgb(200,200,200)', 'rgb(20,20,20)'),
+	hoverProps : TextProperties.listElement('rgb(150,150,255)', 'rgb(60,60,10)')
+};
+
 //source from file gui/menu/editor/model/ModelComponent.js
 function ModelEditorModelComponent(editor){
 	this.editor = editor;
@@ -4786,8 +5091,8 @@ ModelEditorModelComponent.prototype.render = function(renderer){
 
 ModelEditorModelComponent.prototype.update = function(){
 	const k = this.pressedKeys;
-	const cameraSpeed = 0.01;
-	const objectSpeed = 0.01;
+	const cameraSpeed = 1;
+	const objectSpeed = 1;
 	if (k['p']) {
 		console.log('camera', this.editor.camera);
 	}
@@ -4927,7 +5232,7 @@ ModelEditorToolbars.createAdd = function(editor){
 		this.addComponent(new Gui.TextComponent('Vertex', t.props, t.hoverProps, function(x, y, button){
 			const cam = editor.camera;
 			const look = cam.getForwardVector();
-			editor.setSelected(new ModelEditorSelectedVertex(editor, editor.builder.addVertex(cam.getX() + look.x, cam.getY() + look.y, cam.getZ() + look.z, 0, 0, 0)));
+			editor.setSelected(new ModelEditorSelectedVertex(editor, editor.builder.addVertex(Math.round(cam.getX() + 100 * look.x), Math.round(cam.getY() + 100 * look.y), Math.round(cam.getZ() + 100 * look.z), 0, 0, 0)));
 			editor.setViewMode(ModelViewMode.ABSTRACT);
 			editor.hasChanges = true;
 		}), 0.05);
@@ -5004,7 +5309,7 @@ ModelViewMode.ABSTRACT = {
 			// TODO Add support for circles later
 			if (points[index + 2] > - 1 && points[index + 2] < 1){
 				const disZ = ((1 + points[index + 2]) / 2);
-				const size = 0.5 / (50 * vec4.w);
+				const size = 1 / vec4.w;
 
 				// Dirty code to determine color
 				let color = 'rgb(0,0,0)';
@@ -5036,6 +5341,7 @@ function ModelEditorSelectedVertex(editor, index){
 	this.editor = editor;
 	this.model = editor.builder;
 	this.index = index;
+	this.infoMenu = this.createInfoMenu();
 }
 
 ModelEditorSelectedVertex.prototype.move = function(dx, dy, dz){
@@ -5046,13 +5352,57 @@ ModelEditorSelectedVertex.prototype.move = function(dx, dy, dz){
 
 ModelEditorSelectedVertex.prototype.onOpen = function(){
 	this.editor.setRightComponent(this.infoMenu);
+	this.infoMenu.afterSelectVertex();
 };
 
-ModelEditorSelectedVertex.prototype.infoMenu = new Gui.Menu('rgb(0,150,150)', function(){
-	// TODO Improve layout and add more structure for this
-	this.addComponent(new Gui.TextComponent('Move the vertex horizontally with the arrow keys', TextProperties.label()), 0, 0.86, 0.9, 0.9);
-	this.addComponent(new Gui.TextComponent('Move the vertex vertically with the up/down arrow key while holding shift', TextProperties.label()), 0, 0.76, 1, 0.8);
-});
+ModelEditorSelectedVertex.prototype.textComponent1 = new Gui.TextComponent('Move the vertex horizontally with the arrow keys', TextProperties.label());
+ModelEditorSelectedVertex.prototype.textComponent2 = new Gui.TextComponent('Move the vertex vertically with the up/down arrow key while holding shift', TextProperties.label());
+ModelEditorSelectedVertex.prototype.textComponent3 = new Gui.TextComponent('Part:', TextProperties.label());
+
+ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
+	const thisSelected = this;
+	return new Gui.Menu('rgb(0,150,150)', function(){
+		// TODO Improve layout and add more structure for this
+		this.addComponent(thisSelected.textComponent1, 0, 0.86, 0.9, 0.9);
+		this.addComponent(thisSelected.textComponent2, 0, 0.76, 1, 0.8);
+		this.addComponent(thisSelected.textComponent3, 0.05, 0.6, 0.35, 0.65);
+
+		// Add part combo box
+		const modelParts = thisSelected.model.parts;
+		const length = modelParts.length;
+		const partNames = new Array(length);
+		for (let index = 0; index < length; index++){
+			const part = modelParts[index];
+			partNames[index] = 'Part at (' + part.x + ',' + part.y + ',' + part.z + ') [' + index + ']';
+		}
+		this.addFullComponent(new Gui.ComboBox(partNames[thisSelected.model.matrices[thisSelected.index]], ModelEditorCombos.props, ModelEditorCombos.hoverProps, 0.08, 0.4, 0.9, 0.65, partNames, function(partName){
+			const startIndex = partName.indexOf('[') + 1;
+			const endIndex = partName.indexOf(']', startIndex);
+			const index = parseInt(partName.substring(startIndex, endIndex));
+			thisSelected.model.matrices[thisSelected.index] = index;
+		}));
+
+		// Add texture coordinates and link to texture edit
+		this.addComponent(new Gui.TextComponent('Texture coordinates:', TextProperties.label()), 0.05, 0.4, 0.8, 0.45);
+		this.addComponent(new Gui.TextComponent('x:', TextProperties.label()), 0.1, 0.35, 0.2, 0.4);
+		this.addComponent(new Gui.TextComponent('y:', TextProperties.label()), 0.1, 0.3, 0.2, 0.35);
+
+		this.textureX = new Gui.TextComponent('', TextProperties.variable());
+		this.textureY = new Gui.TextComponent('', TextProperties.variable());
+		this.addComponent(this.textureX, 0.25, 0.35, 0.4, 0.4);
+		this.addComponent(this.textureY, 0.25, 0.3, 0.4, 0.35);
+		this.addComponent(new Gui.TextComponent('Edit texture', ModelEditorToolbars.props, ModelEditorToolbars.hoverProps, function(x, y){
+			thisSelected.editor.state.getManager().setMainComponent(thisSelected.editor.imageEditor);
+			thisSelected.editor.imageEditor.setImage(thisSelected.editor.texture);
+		}), 0.3, 0.2, 0.7, 0.3);
+
+		// Functions to update content dynamically
+		this.afterSelectVertex = function(){
+			this.textureX.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2]);
+			this.textureY.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2 + 1]);
+		};
+	});
+};
 
 //source from file gui/menu/editor/model/selectmode/SelectMode.js
 const ModelEditorSelectModes = {};
@@ -5153,6 +5503,189 @@ ModelEditorSelectModes.Vertex.prototype.createInfoMenu = function(canCancel){
 
 ModelEditorSelectModes.Vertex.prototype.infoMenuWithCancel = ModelEditorSelectModes.Vertex.prototype.createInfoMenu(true);
 ModelEditorSelectModes.Vertex.prototype.infoMenuWithoutCancel = ModelEditorSelectModes.Vertex.prototype.createInfoMenu(false);
+
+
+//source from file gui/menu/editor/image/ImageEditor.js
+function GuiImageEditor(texture, onDone, onSave, onCancel, backgroundColor, props, hoverProps, toolbarUpperProps, toolbarUpperHoverProps, toolbarUpperActiveProps, toolbarProps, toolbarHoverProps){
+
+	// Necessary because it inherits from Gui.Menu
+	this.didInit = false;
+	this.components = [];
+
+	// Important variables, notice that the texture should be of type Gui.Texture
+	this.texture = texture.clone();
+	this.onDone = onDone;
+	this.onSave = onSave;
+	this.onCancel = onCancel;
+
+	// Default tool and color
+	this.currentTool = ImageEditorTools.Pixel;
+	this.currentColor = {
+		red: 255,
+		green: 100,
+		blue: 100,
+		alpha: 255
+	};
+
+	// Layout variables
+	this.backgroundColor = backgroundColor;
+	this.props = props;
+	this.hoverProps = hoverProps;
+	this.toolbarUpperProps = toolbarUpperProps;
+	this.toolbarUpperHoverProps = toolbarUpperHoverProps;
+	this.toolbarUpperActiveProps = toolbarUpperActiveProps;
+	this.toolbarProps = toolbarProps;
+	this.toolbarHoverProps = toolbarHoverProps;
+}
+
+extendProtoType(Gui.Menu, GuiImageEditor);
+
+GuiImageEditor.prototype.addComponents = function(){
+	this.addFullComponent(ImageEditorToolbars.createFile(this));
+	this.addComponent(new ImageEditorImageComponent(this), 0.1, 0.1, 0.8, 0.8);
+};
+
+GuiImageEditor.prototype.setImage = function(image){
+	this.texture = image.clone();
+	this.state.getManager().markDirty();
+};
+
+const ImageEditorToolbars = {};
+
+const ImageEditorTools = {};
+
+//source from file gui/menu/editor/image/ImageComponent.js
+function ImageEditorImageComponent(editor){
+
+	// Create some space around the image
+	this.minCameraX = -10;
+	this.minCameraY = -10;
+	this.maxCameraX = editor.texture.width + 10;
+	this.maxCameraY = editor.texture.height + 10;
+
+	this.editor = editor;
+
+	this.pressedKeys = {};
+	this.cameraSpeed = 0.1;
+	this.scrollSpeed = 0.1;
+}
+
+ImageEditorImageComponent.prototype.render = function(renderer){
+	renderer.clear('black');
+	const minCameraX = this.minCameraX;
+	const minCameraY = this.minCameraY;
+	const maxCameraX = this.maxCameraX;
+	const maxCameraY = this.maxCameraY;
+	const textureWidth = this.editor.texture.width;
+	const textureHeight = this.editor.texture.height;
+	const cameraWidth = this.maxCameraX - this.minCameraX;
+	const cameraHeight = this.maxCameraY - this.minCameraY;
+	if (minCameraX < textureWidth && minCameraY < textureHeight && maxCameraX >= 0 && maxCameraY >= 0){
+		const inMinX = minCameraX >= 0;
+		const inMinY = minCameraY >= 0;
+		const inMaxX = maxCameraX <= textureWidth;
+		const inMaxY = maxCameraY <= textureHeight;
+		const minScreenX = inMinX ? 0 : -minCameraX / cameraWidth;
+		const maxScreenY = inMinY ? 1 : 1 + minCameraY / cameraHeight;
+		const maxScreenX = inMaxX ? 1 : 1 - (maxCameraX - textureWidth) / cameraWidth;
+		const minScreenY = inMaxY ? 0 : (maxCameraY - textureHeight) / cameraHeight;
+		renderer.renderTexture(this.editor.texture, minScreenX, minScreenY, maxScreenX, maxScreenY, inMinX ? minCameraX : 0, inMinY ? minCameraY : 0, inMaxX ? Math.min(maxCameraX, textureWidth - 1) : textureWidth - 1, inMaxY ? Math.min(maxCameraY, textureHeight - 1) : textureHeight - 1);
+	}
+};
+
+ImageEditorImageComponent.prototype.click = function(x, y){
+	const pixelX = Math.floor(this.minCameraX + (this.maxCameraX - this.minCameraX) * x);
+	const pixelY = Math.floor(this.maxCameraY - (this.maxCameraY - this.minCameraY) * y);
+	if (pixelX >= 0 && pixelX < this.editor.texture.width && pixelY >= 0 && pixelY < this.editor.texture.height){
+		this.editor.currentTool.processClick(pixelX, pixelY, this.editor);
+	}
+};
+
+ImageEditorImageComponent.prototype.scroll = function(amount){
+	// Zoom to the mouse
+	if (this.state.isMouseOver()){
+		const mouseX = this.state.getMouseX();
+		const mouseY = this.state.getMouseY();
+		const cameraWidth = this.maxCameraX - this.minCameraX;
+		const cameraHeight = this.maxCameraY - this.minCameraY;
+		const scrollSpeed = this.scrollSpeed;
+		this.minCameraX -= mouseX * cameraWidth * scrollSpeed * amount;
+		this.maxCameraX += (1 - mouseX) * cameraWidth * scrollSpeed * amount;
+		this.minCameraY -= (1 - mouseY) * cameraHeight * scrollSpeed * amount;
+		this.maxCameraY += mouseY * cameraHeight * scrollSpeed * amount;
+		this.state.getManager().markDirty();
+	}
+};
+
+ImageEditorImageComponent.prototype.update = function(){
+	if (this.pressedKeys['ArrowLeft']) {
+		const speed = this.cameraSpeed * (this.maxCameraX - this.minCameraX);
+		this.minCameraX -= speed;
+		this.maxCameraX -= speed;
+		this.state.getManager().markDirty();
+	}
+	if (this.pressedKeys['ArrowRight']){
+		const speed = this.cameraSpeed * (this.maxCameraX - this.minCameraX);
+		this.minCameraX += speed;
+		this.maxCameraX += speed;
+		this.state.getManager().markDirty();
+	}
+	if (this.pressedKeys['ArrowDown']) {
+		this.minCameraY += this.cameraSpeed;
+		this.maxCameraY += this.cameraSpeed;
+		this.state.getManager().markDirty();
+	}
+	if (this.pressedKeys['ArrowUp']){
+		this.minCameraY -= this.cameraSpeed;
+		this.maxCameraY -= this.cameraSpeed;
+		this.state.getManager().markDirty();
+	}
+};
+
+ImageEditorImageComponent.prototype.keyDown = function(key){
+	this.pressedKeys[key] = true;
+};
+
+ImageEditorImageComponent.prototype.keyUp = function(key){
+	this.pressedKeys[key] = false;
+};
+
+//source from file gui/menu/editor/image/toolbar/File.js
+ImageEditorToolbars.createFile = function(editor){
+	let toolbar;
+	if (editor.onSave){
+
+		// The user is editing a plain image (add this later)
+		toolbar = new Gui.Toolbar();
+	} else {
+
+		// The image is only a part of the editor
+		toolbar = new Gui.Toolbar('File', editor.toolbarUpperProps, editor.toolbarUpperHoverProps, editor.toolbarUpperActiveProps, 0.05, 0.05, 0.25, 0.15, function(){
+			this.addComponent(new Gui.TextComponent('Done', editor.toolbarProps, editor.toolbarHoverProps, function(){
+				editor.onDone(editor.texture);
+			}), 0.05);
+			this.addComponent(new Gui.TextComponent('Save image as', editor.toolbarProps, editor.toolbarHoverProps, function(){
+				window.alert('Save image as...');
+			}), 0.05);
+			this.addComponent(new Gui.BackgroundComponent(editor.toolbarProps.backgroundColor), 0.03);
+			this.addComponent(new Gui.TextComponent('Replace with other image', editor.toolbarProps, editor.toolbarHoverProps, function(){
+				window.alert('Replace with other image');
+			}), 0.05);
+			this.addComponent(new Gui.TextComponent('Discard changes', editor.toolbarProps, editor.toolbarHoverProps, function(){
+				editor.onCancel();
+			}), 0.05);
+		});
+	}
+	return toolbar;
+};
+
+//source from file gui/menu/editor/image/tool/Pixel.js
+ImageEditorTools.Pixel = {
+	processClick : function(x, y, editor){
+		editor.texture.setPixel(x, y, editor.currentColor.red, editor.currentColor.green, editor.currentColor.blue, editor.currentColor.alpha);
+		editor.state.getManager().markDirty();
+	}
+};
 
 
 //source from file connection/Manager.js

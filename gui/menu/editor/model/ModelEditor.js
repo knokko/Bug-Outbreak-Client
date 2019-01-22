@@ -21,6 +21,11 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 	this.selectMode = ModelEditorSelectModes.createDefault(this);
 	this.selected = null;
 
+	// Use the same instance for every selected type
+	this.selects = {
+		vertex: new ModelEditorSelectedVertex(this)
+	};
+
 	// Create the bound texture editor
 	this.texture = new Gui.Texture(32, 32);
 	const thisModelEditor = this;

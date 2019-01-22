@@ -6,7 +6,8 @@ ModelEditorSelectModes.Vertex = function(editor, onEnter, onCancel){
 
 ModelEditorSelectModes.createDefault = function(editor){
 	return new ModelEditorSelectModes.Vertex(editor, function(index){
-		editor.setSelected(new ModelEditorSelectedVertex(editor, index));
+		editor.selects.vertex.index = index;
+		editor.setSelected(editor.selects.vertex);
 	});
 };
 

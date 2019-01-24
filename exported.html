@@ -220,6 +220,31 @@ const BitHelper = {
 			number--;
 		}
 		return number;
+	},
+	stringFromUint16Array : function(array){
+		const length = array.length;
+   	 	let result = '';
+    	let addition = Math.pow(2,16)-1;
+
+    	for (let i = 0; i < length; i += addition){
+
+        	if (i + addition > length) {
+            	addition = length - i;
+        	}
+        	result += String.fromCharCode.apply(null, array.subarray(i,i+addition));
+    	}
+
+    	return result;
+	},
+	uint16ArrayFromString : function(string){
+		const length = string.length;
+		const result = new Uint16Array(length);
+
+		for (let i = 0; i < length; i++){
+			result[i] = string.charCodeAt(i);
+		}
+
+		return result;
 	}
 };
 
@@ -457,7 +482,66 @@ BitHelper.StringBitInput.prototype.readByte = function(){
 	}
 	const bools = new Array(8);
 	let boolsIndex = 0;
-	for(let index = this.boolIndex; index < 8; index++){
+	for(let index = this.boolIndex % 8; index < 8; index++){
+		bools[boolsIndex++] = bools1[index];
+	}
+	let index = 0;
+	for(; boolsIndex < 8; boolsIndex++){
+		bools[boolsIndex] = bools2[index++]
+	}
+	return BitHelper.booleansToByte(bools);
+};
+
+//library source from BitHelper/input/CharArrayBitInput.js
+BitHelper.CharArrayBitInput = function(array, startIndex, terminate){
+	this.array = array;
+	this.index = startIndex || 0;
+	this.boolIndex = 0;
+	if(terminate){
+		this.terminate = terminate;
+	}
+};
+
+extendProtoType(BitHelper.BitInput, BitHelper.CharArrayBitInput);
+
+BitHelper.CharArrayBitInput.prototype.terminate = function(){};
+
+BitHelper.CharArrayBitInput.prototype.readBoolean = function(){
+	if(this.boolIndex < 8){
+		return BitHelper.byteToBooleans(BitHelper.char0(this.array[this.index]))[this.boolIndex++];
+	}
+	if(this.boolIndex === 15){
+		this.boolIndex = 0;
+		return BitHelper.byteToBooleans(BitHelper.char1(this.array[this.index++]))[7];
+	}
+	return BitHelper.byteToBooleans(BitHelper.char1(this.array[this.index]))[this.boolIndex++ - 8];
+};
+
+BitHelper.CharArrayBitInput.prototype.readByte = function(){
+	if(this.boolIndex === 0){
+		this.boolIndex = 8;
+		return BitHelper.char0(this.array[this.index]);
+	}
+	if(this.boolIndex === 8){
+		this.boolIndex = 0;
+		return BitHelper.char1(this.array[this.index++]);
+	}
+	let bools1;
+	let bools2;
+	if(this.boolIndex < 8){
+		const charCode = this.array[this.index];
+		bools1 = BitHelper.byteToBooleans(BitHelper.char0(charCode));
+		bools2 = BitHelper.byteToBooleans(BitHelper.char1(charCode));
+		this.boolIndex += 8;
+	}
+	else {
+		bools1 = BitHelper.byteToBooleans(BitHelper.char1(this.array[this.index++]));
+		bools2 = BitHelper.byteToBooleans(BitHelper.char0(this.array[this.index]));
+		this.boolIndex -= 8;
+	}
+	const bools = new Array(8);
+	let boolsIndex = 0;
+	for(let index = this.boolIndex % 8; index < 8; index++){
 		bools[boolsIndex++] = bools1[index];
 	}
 	let index = 0;
@@ -573,7 +657,12 @@ BitHelper.ByteArrayBitOutput = function(array, startIndex, terminate){
 
 extendProtoType(BitHelper.BitOutput, BitHelper.ByteArrayBitOutput);
 
+BitHelper.ByteArrayBitOutput.prototype.terminate = function(){};
+
 BitHelper.ByteArrayBitOutput.prototype.writeBoolean = function(boolean){
+	if (this.index >= this.array.length){
+		this.increaseCapacity();
+	}
 	if(this.boolIndex === 7){
 		this.boolIndex = 0;
 		const old = BitHelper.byteToBooleans(this.array[this.index]);
@@ -588,18 +677,19 @@ BitHelper.ByteArrayBitOutput.prototype.writeBoolean = function(boolean){
 };
 
 BitHelper.ByteArrayBitOutput.prototype.internalAddByte = function(byte){
-	if(this.index < this.array.length){
-		this.array[this.index++] = byte;
-	}
-	else {
-		const newArray = new Int8Array(this.index + 9);//add some extra space to improve performance
-		javaArrayCopy(this.array, 0, newArray, 0, this.array.length);
-		this.array = newArray;
-		this.array[this.index++] = byte;
-	}
+	this.array[this.index++] = byte;
+};
+
+BitHelper.ByteArrayBitOutput.prototype.increaseCapacity = function(){
+	const newArray = new Int8Array(this.index + 500);//add some extra space to improve performance
+	javaArrayCopy(this.array, 0, newArray, 0, this.array.length);
+	this.array = newArray;
 };
 
 BitHelper.ByteArrayBitOutput.prototype.writeByte = function(byte){
+	if (this.index >= this.array.length){
+		this.increaseCapacity();
+	}
 	if(this.boolIndex === 0){
 		this.internalAddByte(byte);
 		return;
@@ -615,6 +705,9 @@ BitHelper.ByteArrayBitOutput.prototype.writeByte = function(byte){
 	let nextIndex = 0;
 	for(; boolsIndex < 8; boolsIndex++){
 		next[nextIndex++] = bools[boolsIndex];
+	}
+	if (this.index >= this.array.length){
+		this.increaseCapacity();
 	}
 	this.internalAddByte(BitHelper.booleansToByte(next));
 	this.index--;//the index has been increased twice
@@ -660,6 +753,61 @@ BitHelper.StringBitOutput.prototype.writeByte = function(byte){
 	}
 };
 
+//library source from BitHelper/output/CharArrayBitOutput.js
+BitHelper.CharArrayBitOutput = function(array, startIndex, terminate){
+    this.array = array || new Uint16Array(100);
+    this.index = startIndex || 0;
+	this.boolIndex = 0;
+	this.currentBools = [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false];
+	if(terminate){
+		this.onTerminate = terminate;
+	}
+};
+
+extendProtoType(BitHelper.BitOutput, BitHelper.CharArrayBitOutput);
+
+BitHelper.CharArrayBitOutput.prototype.ensureCapacity = function(extraMargin){
+    if (this.index >= this.array.length){
+        const newArray = new Uint16Array(this.index + extraMargin);//add some extra space to improve performance
+	    javaArrayCopy(this.array, 0, newArray, 0, this.array.length);
+	    this.array = newArray;
+    }
+};
+
+BitHelper.CharArrayBitOutput.prototype.terminate = function(){
+	if(this.boolIndex > 0){
+        this.ensureCapacity(1);
+		this.array[this.index++] = BitHelper.makeChar(BitHelper.booleansToByte(this.currentBools.slice(0, 8)), BitHelper.booleansToByte(this.currentBools.slice(8, 16)));
+	}
+	if(this.onTerminate){
+		this.onTerminate();
+	}
+};
+
+BitHelper.CharArrayBitOutput.prototype.writeBoolean = function(boolean){
+	if(this.boolIndex === 15){
+        this.boolIndex = 0;
+        this.ensureCapacity(500);
+		this.currentBools[15] = boolean;
+		this.array[this.index++] = BitHelper.makeChar(BitHelper.booleansToByte(this.currentBools.slice(0, 8)), BitHelper.booleansToByte(this.currentBools.slice(8, 16)));
+		this.currentBools = [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false];
+	}
+	else {
+		this.currentBools[this.boolIndex++] = boolean;
+	}
+};
+
+BitHelper.CharArrayBitOutput.prototype.writeByte = function(byte){
+	const bools = BitHelper.byteToBooleans(byte);
+	for(let index = 0; index < 8; index++){
+		this.writeBoolean(bools[index]);//a custom writeByte method will barely improve performance anyway
+	}
+};
+
+BitHelper.CharArrayBitOutput.prototype.toString = function(){
+	return BitHelper.stringFromUint16Array(this.array.subarray(0, this.index));
+};
+
 //source from file libraries/BitProtocol.js
 
 //library source from BitProtocol/BitProtocol.js
@@ -703,7 +851,7 @@ function createLocalStorageInput(key){
 	if(canUseLocalStorage){
 		const value = localStorage.getItem(key);
 		if(value !== null){
-			return new BitHelper.StringBitInput(value);
+			return new BitHelper.CharArrayBitInput(BitHelper.uint16ArrayFromString(value));
 		}
 		else {
 			return undefined;
@@ -726,15 +874,16 @@ function createLocalStorageOutput(key){
 
 function LocalStorageBitOutput(key){
 	this.key = key;
-	this.string = '';
+	this.array = new Uint16Array(100);
 	this.boolIndex = 0;
+	this.index = 0;
 	this.currentBools = [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false];
 }
 
-extendProtoType(BitHelper.StringBitOutput, LocalStorageBitOutput);
+extendProtoType(BitHelper.CharArrayBitOutput, LocalStorageBitOutput);
 
 LocalStorageBitOutput.prototype.onTerminate = function(){
-	localStorage.setItem(this.key, this.string);
+	localStorage.setItem(this.key, this.toString());
 };
 
 //source from file libraries/Random.js
@@ -765,9 +914,23 @@ Random.prototype.nextInt = function(bound){
 		return BitHelper.makeInt(this.nextByte(), this.nextByte(), this.nextByte(), this.nextByte());
 	}
 	const bits = BitHelper.getRequiredBits(bound - 1);
-	let result;
+	let safetyCounter = 0;
+	let result = 0;
 	do {
-		result = BitHelper.numberFromBooleans(this.nextBooleans(bits), bits, false);
+		result = 0;
+		const bools = this.nextBooleans(bits);
+		for (let index = 0; index < bits; index++){
+			if (bools[index]){
+				result += BitHelper.POWERS[index];
+			}
+		}
+		
+		// Prevent freezes with broken random number generators
+		safetyCounter++;
+		if (safetyCounter > 50) {
+			result -= bound;
+			break;
+		}
 	} while(result >= bound);
 	return result;
 };
@@ -2428,7 +2591,6 @@ Gui.DynamicSingleText.prototype.render = function(renderer){
 	renderer.fillRect(this.props.borderColor, 1 - this.props.borderX, 0, 1, 1);
 	if (this.xCoords) {
 		for (let index = 0; index < this.textures.length; index++) {
-			console.log('complete is ' + this.textures[index].complete + ' for index ' + index);
 			renderer.renderImage(this.textures[index], this.xCoords[index], this.minTextY, this.xCoords[index + 1], this.maxTextY);
 		}
 	}
@@ -4152,7 +4314,12 @@ const Game = {
 		},
 		profile : {
 			models : {
-				
+				local: {
+
+				},
+				server: {
+					
+				}
 			}
 		},
 		realm : {
@@ -4394,8 +4561,19 @@ function loadLocalProfileEntityModels(){
 	Game.profile.localModelNames = models;
 }
 
+function saveLocalProfileEntityModels(){
+	const output = createLocalStorageOutput('profileEntityModelNames');
+	const models = Game.profile.localModelNames;
+	const length = models.length;
+	output.writeInt(length);
+	for (let index = 0; index < length; index++) {
+		output.writeJavaString(models[index]);
+	}
+	output.terminate();
+}
+
 function loadLocalProfileEntityModel(name){
-	const input = createLocalStorageInput('profileEntityModel' + name);
+	const input = createLocalStorageInput('profileEntityModel_' + name);
 	if(input){
 		const model = loadProfileEntityModel(input);
 		model.isLocal = true;
@@ -4418,7 +4596,7 @@ function ProfileEntityModel(model, name, createdAt, lastModified){
 
 function loadProfileEntityModel(input){
 	const encoding = input.readByte();
-	if(encoding === Game.connectionManager.profile.code.modelEncoding.ENCODING_1){
+	if(encoding === Game.connectionManager.profile.code.StC.modelEncoding.ENCODING_1){
 		return loadProfileEntityModel1(input);
 	}
 	else {
@@ -4427,7 +4605,28 @@ function loadProfileEntityModel(input){
 }
 
 function loadProfileEntityModel1(input){
-	return new ProfileEntityModel(new EntityModel(input), input.readJavaString(), input.readJavaString(), input.readJavaString());
+	const model = Game.models.loadModel(input);
+	const name = input.readJavaString();
+	const createdAt = input.readJavaString();
+	const lastModified = input.readJavaString();
+	return new ProfileEntityModel(model, name, createdAt, lastModified);
+}
+
+function saveProfileEntityModel(model, output){
+	console.log('saveProfileEntityModel');
+	saveProfileEntityModel1(model, output);
+}
+
+function saveProfileEntityModel1(model, output){
+	output.writeByte(Game.connectionManager.profile.code.StC.modelEncoding.ENCODING_1);
+	Game.models.saveModelBuilder(model.model, output);
+	output.writeJavaString(model.name);
+
+	// TODO something really weird happens to the data
+	console.log('write length of createdAt ' + model.createdAt.length);
+	output.writeJavaString(model.createdAt);
+	console.log('write length of lastModified ' + model.lastModified.length);
+	output.writeJavaString(model.lastModified);
 }
 
 
@@ -4625,7 +4824,7 @@ function LocalProfileModelListComponent(modelName){
 extendProtoType(Gui.ActivatableTextComponent, LocalProfileModelListComponent);
 
 LocalProfileModelListComponent.prototype.isActive = function(){
-	const selectedModel = Game.menus.profile.models.selected.model;
+	const selectedModel = Game.menuComponents.profile.models.selected.model;
 	return selectedModel && selectedModel.name === this.text;
 };
 
@@ -4660,7 +4859,7 @@ function ProfileModelListComponent(modelName){
 extendProtoType(Gui.ActivatableTextComponent, ProfileModelListComponent);
 
 ProfileModelListComponent.prototype.isActive = function(){
-	const selectedModel = Game.menus.profile.models.selected.model;
+	const selectedModel = Game.profile.models.selected.model;
 	return selectedModel && selectedModel.name === this.text;
 };
 
@@ -4676,21 +4875,23 @@ ProfileModelListComponent.prototype.activeProps = TextProperties.listElement('rg
 
 //source from file gui/component/profile/models/Selected.js
 Game.menuComponents.profile.models.selected = new Gui.Menu('rgb(0,150,250)', function(){
+	const thisSelected = this;
 	this.editButton = new Gui.TextComponent('Edit', TextProperties.button('rgb(0,200,0)', 'rgb(0,50,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,80,0)'), function(){
-		window.alert('Edit model ' + this.model.name);
+
+		// TODO set the createdAt of the editor!
+		window.alert('Edit model ' + thisSelected.model.name);
 	});
 	this.viewButton = new Gui.TextComponent('View', TextProperties.button(), TextProperties.hoverButton(), function(){
 		window.alert('View this model');
 	});
 	this.deleteButton = new Gui.TextComponent('Delete', TextProperties.button(), TextProperties.hoverButton(), function(){
-		const model = Game.menus.profile.models.selected.model;
-		if(model.isLocal){//model is stored in localStorage
+		if(thisSelected.model.isLocal){//model is stored in localStorage
 			window.alert('Delete this local model');
 		}
 		else {//model is stored on the server
 			window.alert('Delete this server model');
 		}
-	})
+	});
 	this.setSelected = function(profileModel){
 		this.model = profileModel;
 		this.components = [];
@@ -4920,9 +5121,30 @@ Game.menus.profile.models.overview = new Gui.Menu('rgb(0,150,120)', function(){
 	this.addComponent(Game.menuComponents.profile.models.localList, 0.325, 0.15, 0.575, 0.8);
 	this.addComponent(Game.menuComponents.profile.models.selected, 0.6, 0.4, 0.95, 0.7);
 	this.addComponent(new Gui.ConditionalTextComponent('Create new', TextProperties.button('rgb(0,0,200)', 'rgb(0,0,50)'), TextProperties.hoverButton('rgb(0,0,255)', 'rgb(0,0,80)'), function(){
+		const saveOnline = function(){
+			// this will refer to the editor
+			window.alert('Save online');
+		};
+		const saveOffline = function(){
+			// this will refer to the editor
+			const output = createLocalStorageOutput('profileEntityModel_' + this.name);
+			//Game.models.saveModelBuilder(this.builder, output);
+			const timeString = new Date().toString();
+			if (!this.createdAt){
+				this.createdAt = timeString;
+			}
+			saveProfileEntityModel(new ProfileEntityModel(this.builder, this.name, this.createdAt, timeString), output);
+			output.terminate();
+			Game.profile.localModelNames.push(this.name);
+			saveLocalProfileEntityModels();
+		};
 		Game.guiManager.setMainComponent(new GuiModelEditor(undefined, new Gui3D.ModelBuilder(), undefined, function(){
+
+			const thisEditor = this;
+
 			// Note that this refers to the editor and then to the saveAs menu
 			this.setPopup(new Gui.Menu('rgb(100,0,150)', function(){
+				const thisPopup = this;
 				let selectedSaveMode;
 				const saveOnline = new Gui.ActivatableTextComponent('Save online', TextProperties.button('rgb(80,80,80)', 'rgb(30,30,70)'), TextProperties.hoverButton('rgb(100,100,200)', 'rgb(50,50,100)'), TextProperties.hoverButton('200,100,255', 'rgb(200,100,50)'), function(){
 					selectedSaveMode = this;
@@ -4932,18 +5154,25 @@ Game.menus.profile.models.overview = new Gui.Menu('rgb(0,150,120)', function(){
 				selectedSaveMode = saveOnline;
 				this.addComponent(saveOnline, 0.6, 0.7, 0.8, 0.8);
 				this.addComponent(new Gui.ActivatableTextComponent('Save offline', TextProperties.button('rgb(80,80,80)', 'rgb(30,30,70)'), TextProperties.hoverButton('rgb(100,100,200)', 'rgb(50,50,100)'), TextProperties.hoverButton('200,100,255', 'rgb(200,100,50)'), function(){
-					selectedSaveMode = this;
+					if (canUseLocalStorage){
+						selectedSaveMode = this;
+					} else {
+						window.alert('Offline saving is not supported by your browser.');
+					}
 				}, function(){
 					return selectedSaveMode === this;
 				}), 0.6, 0.5, 0.8, 0.6);
+				const nameInput = new Gui.TextInputComponent('', 25, TextProperties.edit(), TextProperties.focusEdit());
 				this.addComponent(new Gui.TextComponent('Name: ', TextProperties.label()), 0.1, 0.4, 0.2, 0.475);
-				this.addComponent(new Gui.TextInputComponent('', 25, TextProperties.edit(), TextProperties.focusEdit()), 0.1, 0.3, 0.4, 0.4);
+				this.addComponent(nameInput, 0.1, 0.3, 0.4, 0.4);
 				this.addComponent(new Gui.TextComponent('Save', TextProperties.button('rgb(0,200,0)', 'rgb(0,50,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,65,0)'), function(){
+					thisEditor.name = nameInput.text;
 					if (selectedSaveMode === saveOnline){
-						window.alert('Save online');
+						thisEditor.save = saveOnline;
 					} else {
-						window.alert('Save offline');
+						thisEditor.save = saveOffline;
 					}
+					thisEditor.save();
 				}), 0.2, 0.1, 0.3, 0.2);
 			}));
 		}, function(){
@@ -5367,7 +5596,9 @@ ModelViewMode.REAL = {
 function ModelEditorSelectedVertex(editor){
 	this.editor = editor;
 	this.index = -1;
+	this.model = editor.builder;
 	this.infoMenu = this.createInfoMenu();
+	this.textureCoordsSelect = this.createTextureCoordsSelect();
 }
 
 ModelEditorSelectedVertex.prototype.move = function(dx, dy, dz){
@@ -5378,9 +5609,55 @@ ModelEditorSelectedVertex.prototype.move = function(dx, dy, dz){
 };
 
 ModelEditorSelectedVertex.prototype.onOpen = function(){
-	this.model = this.editor.builder;
 	this.editor.setRightComponent(this.infoMenu);
 	this.infoMenu.afterSelectVertex();
+};
+
+ModelEditorSelectedVertex.prototype.createTextureCoordsSelect = function(){
+	const thisSelected = this;
+	const ImageComponent = function(texture, setCoords, oldX, oldY){
+		this.texture = texture;
+		this.setCoords = setCoords;
+		this.selectedX = this.oldX;
+		this.selectedY = this.oldY;
+	};
+	ImageComponent.prototype.click = function(x, y){
+		this.selectedX = Math.floor(x * this.texture.width);
+		if (this.selectedX >= this.texture.width){
+			this.selectedX = this.texture.width - 1;
+		}
+		this.selectedY = Math.floor((1 - y) * this.texture.height);
+		if (this.selectedY >= this.texture.height){
+			this.selectedY = this.texture.height - 1;
+		}
+		this.setCoords(this.selectedX, this.selectedY);
+		this.state.getManager().markDirty();
+	};
+	ImageComponent.prototype.render = function(renderer){
+		renderer.renderTexture(this.texture, 0, 0, 1, 1);
+		const renderX = this.selectedX / this.texture.width;
+		const renderY = 1 - this.selectedY / this.texture.height;
+		renderer.fillRect('rgb(200,0,200)', renderX, renderY, renderX + 1 / this.texture.width, renderY - 1 / this.texture.height);
+	};
+	return new Gui.Menu('rgb(200,200,200', function(){
+		const thisMenu = this;
+		this.selectedX = 0;
+		this.selectedY = 0;
+		this.addComponent(new Gui.TextComponent('Cancel', TextProperties.button('rgb(0,150,200)', 'rgb(0,30,40)'), TextProperties.hoverButton('rgb(0,200,255)', 'rgb(0,40,50)'), function(){
+			this.state.getManager().setMainComponent(thisSelected.editor);
+		}), 0.2, 0.02, 0.35, 0.09);
+		this.addComponent(new Gui.TextComponent('Done', TextProperties.button('rgb(0,150,200)', 'rgb(0,30,40)'), TextProperties.hoverButton('rgb(0,200,255)', 'rgb(0,40,50)'), function(){
+			thisSelected.model.textureCoords[thisSelected.index * 2] = thisMenu.selectedX;
+			thisSelected.model.textureCoords[thisSelected.index * 2 + 1] = thisMenu.selectedY;
+			this.state.getManager().setMainComponent(thisSelected.editor);
+			thisSelected.infoMenu.afterTextureCoordsChange();
+		}), 0.6, 0.02, 0.7, 0.09);
+
+		this.addComponent(new ImageComponent(thisSelected.editor.texture, function(x, y){
+			thisMenu.selectedX = x;
+			thisMenu.selectedY = y;
+		}, this.selectedX, this.selectedY), 0, 0.1, 1, 1);
+	});
 };
 
 ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
@@ -5413,6 +5690,9 @@ ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
 		this.textureY = new Gui.DynamicTextComponent('', TextProperties.variable());
 		this.addComponent(this.textureX, 0.25, 0.3, 0.4, 0.34);
 		this.addComponent(this.textureY, 0.25, 0.24, 0.4, 0.28);
+		this.addComponent(new Gui.TextComponent('Change', TextProperties.button('rgb(150,150,200)', 'rgb(40,40,50)'), TextProperties.button('rgb(200,200,255)', 'rgb(50,50,70)'), function(){
+			this.state.getManager().setMainComponent(thisSelected.textureCoordsSelect);
+		}), 0.6, 0.25, 0.8, 0.33);
 		this.addComponent(new Gui.TextComponent('Edit texture', ModelEditorToolbars.props, ModelEditorToolbars.hoverProps, function(x, y){
 			thisSelected.editor.state.getManager().setMainComponent(thisSelected.editor.imageEditor);
 			thisSelected.editor.imageEditor.setImage(thisSelected.editor.texture);
@@ -5420,8 +5700,7 @@ ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
 
 		// Functions to update content dynamically
 		this.afterSelectVertex = function(){
-			this.textureX.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2]);
-			this.textureY.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2 + 1]);
+			this.afterTextureCoordsChange();
 			this.afterVertexMove();
 			this.afterPartEdit();
 		};
@@ -5429,6 +5708,10 @@ ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
 			this.positionX.setText('' + thisSelected.model.positions[thisSelected.index * 3]);
 			this.positionY.setText('' + thisSelected.model.positions[thisSelected.index * 3 + 1]);
 			this.positionZ.setText('' + thisSelected.model.positions[thisSelected.index * 3 + 2]);
+		};
+		this.afterTextureCoordsChange = function(){
+			this.textureX.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2]);
+			this.textureY.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2 + 1]);
 		};
 		this.afterPartEdit = function(){
 			// Add part combo box
@@ -5592,8 +5875,8 @@ function GuiImageEditor(texture, onDone, onSave, onCancel, backgroundColor, prop
 extendProtoType(Gui.Menu, GuiImageEditor);
 
 GuiImageEditor.prototype.addComponents = function(){
-	this.addFullComponent(ImageEditorToolbars.createFile(this));
 	this.addComponent(new ImageEditorImageComponent(this), 0.1, 0.1, 0.8, 0.8);
+	this.addFullComponent(ImageEditorToolbars.createFile(this));
 };
 
 GuiImageEditor.prototype.setImage = function(image){
@@ -6359,8 +6642,8 @@ Game.connectionManager.profile.code = {
 		process : function(input){
 			if(profile.state.state === profile.state.STATE_GETTING_MODEL){
 				const profileModel = loadProfileEntityModel(input);
-				Game.profile.models[profile.state.waitingModelName] = profileModel;
-				Game.menus.profile.models.overview.setSelected(profileModel);
+				Game.profile.models.server[profile.state.waitingModelName] = profileModel;
+				Game.menuComponents.profile.models.overview.setSelected(profileModel);
 				profile.state.waitingModelName = undefined;
 				profile.state.state = profile.state.STATE_LOGGED_IN;
 			}

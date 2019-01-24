@@ -11,7 +11,12 @@ const Game = {
 		},
 		profile : {
 			models : {
-				
+				local: {
+
+				},
+				server: {
+					
+				}
 			}
 		},
 		realm : {

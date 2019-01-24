@@ -34,8 +34,8 @@
 		process : function(input){
 			if(profile.state.state === profile.state.STATE_GETTING_MODEL){
 				const profileModel = loadProfileEntityModel(input);
-				Game.profile.models[profile.state.waitingModelName] = profileModel;
-				Game.menus.profile.models.overview.setSelected(profileModel);
+				Game.profile.models.server[profile.state.waitingModelName] = profileModel;
+				Game.menuComponents.profile.models.overview.setSelected(profileModel);
 				profile.state.waitingModelName = undefined;
 				profile.state.state = profile.state.STATE_LOGGED_IN;
 			}

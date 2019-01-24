@@ -33,8 +33,8 @@ function GuiImageEditor(texture, onDone, onSave, onCancel, backgroundColor, prop
 extendProtoType(Gui.Menu, GuiImageEditor);
 
 GuiImageEditor.prototype.addComponents = function(){
-	this.addFullComponent(ImageEditorToolbars.createFile(this));
 	this.addComponent(new ImageEditorImageComponent(this), 0.1, 0.1, 0.8, 0.8);
+	this.addFullComponent(ImageEditorToolbars.createFile(this));
 };
 
 GuiImageEditor.prototype.setImage = function(image){

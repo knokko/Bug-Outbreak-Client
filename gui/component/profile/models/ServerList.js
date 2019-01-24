@@ -17,7 +17,7 @@ function ProfileModelListComponent(modelName){
 extendProtoType(Gui.ActivatableTextComponent, ProfileModelListComponent);
 
 ProfileModelListComponent.prototype.isActive = function(){
-	const selectedModel = Game.menus.profile.models.selected.model;
+	const selectedModel = Game.profile.models.selected.model;
 	return selectedModel && selectedModel.name === this.text;
 };
 

@@ -1,7 +1,9 @@
 function ModelEditorSelectedVertex(editor){
 	this.editor = editor;
 	this.index = -1;
+	this.model = editor.builder;
 	this.infoMenu = this.createInfoMenu();
+	this.textureCoordsSelect = this.createTextureCoordsSelect();
 }
 
 ModelEditorSelectedVertex.prototype.move = function(dx, dy, dz){
@@ -12,9 +14,55 @@ ModelEditorSelectedVertex.prototype.move = function(dx, dy, dz){
 };
 
 ModelEditorSelectedVertex.prototype.onOpen = function(){
-	this.model = this.editor.builder;
 	this.editor.setRightComponent(this.infoMenu);
 	this.infoMenu.afterSelectVertex();
+};
+
+ModelEditorSelectedVertex.prototype.createTextureCoordsSelect = function(){
+	const thisSelected = this;
+	const ImageComponent = function(texture, setCoords, oldX, oldY){
+		this.texture = texture;
+		this.setCoords = setCoords;
+		this.selectedX = this.oldX;
+		this.selectedY = this.oldY;
+	};
+	ImageComponent.prototype.click = function(x, y){
+		this.selectedX = Math.floor(x * this.texture.width);
+		if (this.selectedX >= this.texture.width){
+			this.selectedX = this.texture.width - 1;
+		}
+		this.selectedY = Math.floor((1 - y) * this.texture.height);
+		if (this.selectedY >= this.texture.height){
+			this.selectedY = this.texture.height - 1;
+		}
+		this.setCoords(this.selectedX, this.selectedY);
+		this.state.getManager().markDirty();
+	};
+	ImageComponent.prototype.render = function(renderer){
+		renderer.renderTexture(this.texture, 0, 0, 1, 1);
+		const renderX = this.selectedX / this.texture.width;
+		const renderY = 1 - this.selectedY / this.texture.height;
+		renderer.fillRect('rgb(200,0,200)', renderX, renderY, renderX + 1 / this.texture.width, renderY - 1 / this.texture.height);
+	};
+	return new Gui.Menu('rgb(200,200,200', function(){
+		const thisMenu = this;
+		this.selectedX = 0;
+		this.selectedY = 0;
+		this.addComponent(new Gui.TextComponent('Cancel', TextProperties.button('rgb(0,150,200)', 'rgb(0,30,40)'), TextProperties.hoverButton('rgb(0,200,255)', 'rgb(0,40,50)'), function(){
+			this.state.getManager().setMainComponent(thisSelected.editor);
+		}), 0.2, 0.02, 0.35, 0.09);
+		this.addComponent(new Gui.TextComponent('Done', TextProperties.button('rgb(0,150,200)', 'rgb(0,30,40)'), TextProperties.hoverButton('rgb(0,200,255)', 'rgb(0,40,50)'), function(){
+			thisSelected.model.textureCoords[thisSelected.index * 2] = thisMenu.selectedX;
+			thisSelected.model.textureCoords[thisSelected.index * 2 + 1] = thisMenu.selectedY;
+			this.state.getManager().setMainComponent(thisSelected.editor);
+			thisSelected.infoMenu.afterTextureCoordsChange();
+		}), 0.6, 0.02, 0.7, 0.09);
+
+		this.addComponent(new ImageComponent(thisSelected.editor.texture, function(x, y){
+			thisMenu.selectedX = x;
+			thisMenu.selectedY = y;
+		}, this.selectedX, this.selectedY), 0, 0.1, 1, 1);
+	});
 };
 
 ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
@@ -47,6 +95,9 @@ ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
 		this.textureY = new Gui.DynamicTextComponent('', TextProperties.variable());
 		this.addComponent(this.textureX, 0.25, 0.3, 0.4, 0.34);
 		this.addComponent(this.textureY, 0.25, 0.24, 0.4, 0.28);
+		this.addComponent(new Gui.TextComponent('Change', TextProperties.button('rgb(150,150,200)', 'rgb(40,40,50)'), TextProperties.button('rgb(200,200,255)', 'rgb(50,50,70)'), function(){
+			this.state.getManager().setMainComponent(thisSelected.textureCoordsSelect);
+		}), 0.6, 0.25, 0.8, 0.33);
 		this.addComponent(new Gui.TextComponent('Edit texture', ModelEditorToolbars.props, ModelEditorToolbars.hoverProps, function(x, y){
 			thisSelected.editor.state.getManager().setMainComponent(thisSelected.editor.imageEditor);
 			thisSelected.editor.imageEditor.setImage(thisSelected.editor.texture);
@@ -54,8 +105,7 @@ ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
 
 		// Functions to update content dynamically
 		this.afterSelectVertex = function(){
-			this.textureX.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2]);
-			this.textureY.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2 + 1]);
+			this.afterTextureCoordsChange();
 			this.afterVertexMove();
 			this.afterPartEdit();
 		};
@@ -63,6 +113,10 @@ ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
 			this.positionX.setText('' + thisSelected.model.positions[thisSelected.index * 3]);
 			this.positionY.setText('' + thisSelected.model.positions[thisSelected.index * 3 + 1]);
 			this.positionZ.setText('' + thisSelected.model.positions[thisSelected.index * 3 + 2]);
+		};
+		this.afterTextureCoordsChange = function(){
+			this.textureX.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2]);
+			this.textureY.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2 + 1]);
 		};
 		this.afterPartEdit = function(){
 			// Add part combo box

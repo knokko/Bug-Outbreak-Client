@@ -4449,7 +4449,7 @@ Game.models = {
 			texture.data[index * 4] = input.readByte() & 0xFF;
 			texture.data[index * 4 + 1] = input.readByte() & 0xFF;
 			texture.data[index * 4 + 2] = input.readByte() & 0xFF;
-			texture.data[index * 4] = 255;
+			texture.data[index * 4 + 3] = 255;
 		}
 		return texture;
 	},
@@ -4499,7 +4499,7 @@ Game.models = {
 		for (let index = 0; index < partLength; index++){
 			parts[index] = this.loadSkeletonPart1(input);
 		}
-		return new Gui3D.Skeleton(input);
+		return new Gui3D.Skeleton(parts);
 	},
 	loadSkeletonPart1 : function(input){
 		const parentIndex = input.readByte();
@@ -4877,9 +4877,10 @@ ProfileModelListComponent.prototype.activeProps = TextProperties.listElement('rg
 Game.menuComponents.profile.models.selected = new Gui.Menu('rgb(0,150,250)', function(){
 	const thisSelected = this;
 	this.editButton = new Gui.TextComponent('Edit', TextProperties.button('rgb(0,200,0)', 'rgb(0,50,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,80,0)'), function(){
-
-		// TODO set the createdAt of the editor!
-		window.alert('Edit model ' + thisSelected.model.name);
+		const modelOverview = Game.menus.profile.models.overview;
+		const editor = new GuiModelEditor(thisSelected.model.name, new Gui3D.ModelBuilder(thisSelected.model.model), modelOverview.saveOfflineFunction, modelOverview.saveAsFunction, modelOverview.exitFunction);
+		editor.createdAt = thisSelected.model.createdAt;
+		this.state.getManager().setMainComponent(editor);
 	});
 	this.viewButton = new Gui.TextComponent('View', TextProperties.button(), TextProperties.hoverButton(), function(){
 		window.alert('View this model');
@@ -5116,74 +5117,81 @@ Game.menus.profile.overview = new Gui.Menu('rgb(0, 150, 120)', function(){
 
 //source from file gui/menu/profile/Models.js
 Game.menus.profile.models.overview = new Gui.Menu('rgb(0,150,120)', function(){
+	const thisMenu = this;
+	// functions to save and exit model editor
+	this.saveOnlineFunction = function(){
+		// this will refer to the editor
+		window.alert('Save online');
+	};
+	this.saveOfflineFunction = function(){
+		// this will refer to the editor
+		const output = createLocalStorageOutput('profileEntityModel_' + this.name);
+		const timeString = new Date().toString();
+		if (!this.createdAt){
+			this.createdAt = timeString;
+		}
+		saveProfileEntityModel(new ProfileEntityModel(this.builder, this.name, this.createdAt, timeString), output);
+		output.terminate();
+		if (Game.profile.localModelNames.indexOf(this.name) === -1){
+			Game.profile.localModelNames.push(this.name);
+			saveLocalProfileEntityModels();
+		}
+		this.state.getManager().setMainComponent(this);
+		this.hasChanges = false;
+	};
+	this.saveAsFunction = function(){
+
+		const thisEditor = this;
+
+		// Note that this refers to the editor and then to the saveAs menu
+		this.setPopup(new Gui.Menu('rgb(100,0,150)', function(){
+			const thisPopup = this;
+			let selectedSaveMode;
+			const saveOnline = new Gui.ActivatableTextComponent('Save online', TextProperties.button('rgb(80,80,80)', 'rgb(30,30,70)'), TextProperties.hoverButton('rgb(100,100,200)', 'rgb(50,50,100)'), TextProperties.hoverButton('200,100,255', 'rgb(200,100,50)'), function(){
+				selectedSaveMode = this;
+			}, function(){
+				return selectedSaveMode === this;
+			});
+			selectedSaveMode = saveOnline;
+			this.addComponent(saveOnline, 0.6, 0.7, 0.8, 0.8);
+			this.addComponent(new Gui.ActivatableTextComponent('Save offline', TextProperties.button('rgb(80,80,80)', 'rgb(30,30,70)'), TextProperties.hoverButton('rgb(100,100,200)', 'rgb(50,50,100)'), TextProperties.hoverButton('200,100,255', 'rgb(200,100,50)'), function(){
+				if (canUseLocalStorage){
+					selectedSaveMode = this;
+				} else {
+					window.alert('Offline saving is not supported by your browser.');
+				}
+			}, function(){
+				return selectedSaveMode === this;
+			}), 0.6, 0.5, 0.8, 0.6);
+			const nameInput = new Gui.TextInputComponent('', 25, TextProperties.edit(), TextProperties.focusEdit());
+			this.addComponent(new Gui.TextComponent('Name: ', TextProperties.label()), 0.1, 0.4, 0.2, 0.475);
+			this.addComponent(nameInput, 0.1, 0.3, 0.4, 0.4);
+			this.addComponent(new Gui.TextComponent('Save', TextProperties.button('rgb(0,200,0)', 'rgb(0,50,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,65,0)'), function(){
+				thisEditor.name = nameInput.text;
+				if (selectedSaveMode === saveOnline){
+					thisEditor.save = thisMenu.saveOnlineFunction;
+				} else {
+					thisEditor.save = thisMenu.saveOfflineFunction;
+				}
+				thisEditor.save();
+			}), 0.2, 0.1, 0.3, 0.2);
+		}));
+	};
+	this.exitFunction = function(){
+		Game.guiManager.setMainComponent(Game.menus.main.afterAuth);
+		Game.menuComponents.profile.models.localList.refresh();
+		Game.menuComponents.profile.models.serverList.refresh();
+		Game.menus.profile.models.overview.setSelected(null);
+	};
 	this.addComponent(new Gui.TextComponent('Character models', TextProperties.label()), 0.1, 0.83, 0.4, 0.98);
 	this.addComponent(Game.menuComponents.profile.models.serverList, 0.05, 0.15, 0.3, 0.8);
 	this.addComponent(Game.menuComponents.profile.models.localList, 0.325, 0.15, 0.575, 0.8);
 	this.addComponent(Game.menuComponents.profile.models.selected, 0.6, 0.4, 0.95, 0.7);
 	this.addComponent(new Gui.ConditionalTextComponent('Create new', TextProperties.button('rgb(0,0,200)', 'rgb(0,0,50)'), TextProperties.hoverButton('rgb(0,0,255)', 'rgb(0,0,80)'), function(){
-		const saveOnline = function(){
-			// this will refer to the editor
-			window.alert('Save online');
-		};
-		const saveOffline = function(){
-			// this will refer to the editor
-			const output = createLocalStorageOutput('profileEntityModel_' + this.name);
-			//Game.models.saveModelBuilder(this.builder, output);
-			const timeString = new Date().toString();
-			if (!this.createdAt){
-				this.createdAt = timeString;
-			}
-			saveProfileEntityModel(new ProfileEntityModel(this.builder, this.name, this.createdAt, timeString), output);
-			output.terminate();
-			Game.profile.localModelNames.push(this.name);
-			saveLocalProfileEntityModels();
-		};
-		Game.guiManager.setMainComponent(new GuiModelEditor(undefined, new Gui3D.ModelBuilder(), undefined, function(){
-
-			const thisEditor = this;
-
-			// Note that this refers to the editor and then to the saveAs menu
-			this.setPopup(new Gui.Menu('rgb(100,0,150)', function(){
-				const thisPopup = this;
-				let selectedSaveMode;
-				const saveOnline = new Gui.ActivatableTextComponent('Save online', TextProperties.button('rgb(80,80,80)', 'rgb(30,30,70)'), TextProperties.hoverButton('rgb(100,100,200)', 'rgb(50,50,100)'), TextProperties.hoverButton('200,100,255', 'rgb(200,100,50)'), function(){
-					selectedSaveMode = this;
-				}, function(){
-					return selectedSaveMode === this;
-				});
-				selectedSaveMode = saveOnline;
-				this.addComponent(saveOnline, 0.6, 0.7, 0.8, 0.8);
-				this.addComponent(new Gui.ActivatableTextComponent('Save offline', TextProperties.button('rgb(80,80,80)', 'rgb(30,30,70)'), TextProperties.hoverButton('rgb(100,100,200)', 'rgb(50,50,100)'), TextProperties.hoverButton('200,100,255', 'rgb(200,100,50)'), function(){
-					if (canUseLocalStorage){
-						selectedSaveMode = this;
-					} else {
-						window.alert('Offline saving is not supported by your browser.');
-					}
-				}, function(){
-					return selectedSaveMode === this;
-				}), 0.6, 0.5, 0.8, 0.6);
-				const nameInput = new Gui.TextInputComponent('', 25, TextProperties.edit(), TextProperties.focusEdit());
-				this.addComponent(new Gui.TextComponent('Name: ', TextProperties.label()), 0.1, 0.4, 0.2, 0.475);
-				this.addComponent(nameInput, 0.1, 0.3, 0.4, 0.4);
-				this.addComponent(new Gui.TextComponent('Save', TextProperties.button('rgb(0,200,0)', 'rgb(0,50,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,65,0)'), function(){
-					thisEditor.name = nameInput.text;
-					if (selectedSaveMode === saveOnline){
-						thisEditor.save = saveOnline;
-					} else {
-						thisEditor.save = saveOffline;
-					}
-					thisEditor.save();
-				}), 0.2, 0.1, 0.3, 0.2);
-			}));
-		}, function(){
-			Game.guiManager.setMainComponent(Game.menus.main.afterAuth);
-			Game.menuComponents.profile.models.localList.refresh();
-			Game.menuComponents.profile.models.serverList.refresh();
-			Game.menus.profile.models.overview.setSelected(null);
-		}));
+		Game.guiManager.setMainComponent(new GuiModelEditor(undefined, new Gui3D.ModelBuilder(), undefined, thisMenu.saveAsFunction, thisMenu.exitFunction));
 	}, function(){
 		return Game.profile.serverModelNames.length < Game.profile.maxModelSlots;
-	}), 0.1, 0.025, 0.3, 0.125);
+	}), 0.2125, 0.025, 0.4125, 0.125);
 	this.setSelected = function(model){
 		Game.menuComponents.profile.models.selected.setSelected(model);
 		this.state.getManager().markDirty();
@@ -5227,21 +5235,23 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 	this.selectMode = ModelEditorSelectModes.createDefault(this);
 	this.selected = null;
 
+	// Create the bound texture editor
+	const thisModelEditor = this;
+	const metb = ModelEditorToolbars;
+	this.imageEditor = new GuiImageEditor(modelBuilder.texture, function(newTexture){
+		thisModelEditor.builder.texture = newTexture;
+		thisModelEditor.hasChanges = true;
+		this.state.getManager().setMainComponent(thisModelEditor);
+		if (thisModelEditor.selected){
+			thisModelEditor.selected.onTextureChange();
+		}
+	}, undefined, function(){
+		thisModelEditor.state.getManager().setMainComponent(thisModelEditor);
+	}, this.backgroundColor, metb.props, metb.hoverProps, metb.upperProps, metb.upperHoverProps, metb.upperActiveProps, metb.props, metb.hoverProps);
 	// Use the same instance for every selected type
 	this.selects = {
 		vertex: new ModelEditorSelectedVertex(this)
 	};
-
-	// Create the bound texture editor
-	this.texture = new Gui.Texture(32, 32);
-	const thisModelEditor = this;
-	const metb = ModelEditorToolbars;
-	this.imageEditor = new GuiImageEditor(this.texture, function(newTexture){
-		thisModelEditor.texture = newTexture.clone();
-		thisModelEditor.state.getManager().setMainComponent(thisModelEditor);
-	}, undefined, function(){
-		thisModelEditor.state.getManager().setMainComponent(thisModelEditor);
-	}, this.backgroundColor, metb.props, metb.hoverProps, metb.upperProps, metb.upperHoverProps, metb.upperActiveProps, metb.props, metb.hoverProps);
 }
 
 extendProtoType(Gui.Menu, GuiModelEditor);
@@ -5346,8 +5356,8 @@ ModelEditorModelComponent.prototype.render = function(renderer){
 
 ModelEditorModelComponent.prototype.update = function(){
 	const k = this.pressedKeys;
-	const cameraSpeed = 1;
-	const objectSpeed = 1;
+	const cameraSpeed = 3;
+	const objectSpeed = 3;
 	if (k['p']) {
 		console.log('camera', this.editor.camera);
 	}
@@ -5405,25 +5415,39 @@ ModelEditorModelComponent.prototype.update = function(){
 	}
 	if (this.editor.selected) {
 		if (k['ArrowLeft']) {
-			this.editor.selected.move(-objectSpeed, 0, 0);
+			const right = this.editor.camera.getRightVector();
+			this.editor.selected.move(Math.round(-objectSpeed * right.x), Math.round(-objectSpeed * right.y), Math.round(-objectSpeed * right.z));
+			this.editor.hasChanges = true;
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowRight']) {
-			this.editor.selected.move(objectSpeed, 0, 0);
+			const right = this.editor.camera.getRightVector();
+			this.editor.selected.move(Math.round(objectSpeed * right.x), Math.round(objectSpeed * right.y), Math.round(objectSpeed * right.z));
+			this.editor.hasChanges = true;
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowUp']) {
-			if (k['Shift'])
-				this.editor.selected.move(0, objectSpeed, 0);
-			else
-				this.editor.selected.move(0, 0, -objectSpeed);
+			if (k['Shift']){
+				const up = this.editor.camera.getUpVector();
+				this.editor.selected.move(Math.round(objectSpeed * up.x), Math.round(objectSpeed * up.y), Math.round(objectSpeed * up.z));
+			}
+			else {
+				const forward = this.editor.camera.getForwardVector();
+				this.editor.selected.move(Math.round(objectSpeed * forward.x), Math.round(objectSpeed * forward.y), Math.round(objectSpeed * forward.z));
+			}
+			this.editor.hasChanges = true;
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowDown']) {
-			if (k['Shift'])
-				this.editor.selected.move(0, -objectSpeed, 0);
-			else
-				this.editor.selected.move(0, 0, objectSpeed);
+			if (k['Shift']){
+				const up = this.editor.camera.getUpVector();
+				this.editor.selected.move(Math.round(-objectSpeed * up.x), Math.round(-objectSpeed * up.y), Math.round(-objectSpeed * up.z));
+			}
+			else {
+				const forward = this.editor.camera.getForwardVector();
+				this.editor.selected.move(Math.round(-objectSpeed * forward.x), Math.round(-objectSpeed * forward.y), Math.round(-objectSpeed * forward.z));
+			}
+			this.editor.hasChanges = true;
 			this.state.getManager().markDirty();
 		}
 	}
@@ -5446,9 +5470,8 @@ ModelEditorToolbars.createFile = function(editor){
 	const t = ModelEditorToolbars;
 	const toolbar = new Gui.Toolbar('File', t.upperProps, t.upperHoverProps, t.upperActiveProps, 0.05, 0.05, 0.25, 0.15, function(){
 		this.addComponent(new Gui.TextComponent('Save', t.props, t.hoverProps, function(x, y, button){
-			if (editor.name) {
+			if (editor.name !== undefined) {
 				editor.save();
-				editor.hasChanges = false;
 			} else {
 				editor.saveAs();
 			}
@@ -5457,6 +5480,8 @@ ModelEditorToolbars.createFile = function(editor){
 			editor.saveAs();
 		}), 0.05);
 		this.addComponent(new Gui.TextComponent('Exit', t.props, t.hoverProps, function(x, y, button){
+
+			// TODO set the hasChanges flag to true when things change!
 			if (editor.hasChanges){
 				const popup = new Gui.Menu(ModelEditorPopups.backgroundColor, function(){
 					this.addComponent(new Gui.TextComponent('Would you like to save?', ModelEditorPopups.labelProps), 0.2, 0.6, 0.8, 0.8);
@@ -5613,13 +5638,15 @@ ModelEditorSelectedVertex.prototype.onOpen = function(){
 	this.infoMenu.afterSelectVertex();
 };
 
+ModelEditorSelectedVertex.prototype.onTextureChange = function(){
+	this.textureCoordsSelect.imageComponent.texture = this.model.texture;
+};
+
 ModelEditorSelectedVertex.prototype.createTextureCoordsSelect = function(){
 	const thisSelected = this;
-	const ImageComponent = function(texture, setCoords, oldX, oldY){
+	const ImageComponent = function(texture, setCoords){
 		this.texture = texture;
 		this.setCoords = setCoords;
-		this.selectedX = this.oldX;
-		this.selectedY = this.oldY;
 	};
 	ImageComponent.prototype.click = function(x, y){
 		this.selectedX = Math.floor(x * this.texture.width);
@@ -5639,7 +5666,7 @@ ModelEditorSelectedVertex.prototype.createTextureCoordsSelect = function(){
 		const renderY = 1 - this.selectedY / this.texture.height;
 		renderer.fillRect('rgb(200,0,200)', renderX, renderY, renderX + 1 / this.texture.width, renderY - 1 / this.texture.height);
 	};
-	return new Gui.Menu('rgb(200,200,200', function(){
+	const menu = new Gui.Menu('rgb(200,200,200', function(){
 		const thisMenu = this;
 		this.selectedX = 0;
 		this.selectedY = 0;
@@ -5649,15 +5676,17 @@ ModelEditorSelectedVertex.prototype.createTextureCoordsSelect = function(){
 		this.addComponent(new Gui.TextComponent('Done', TextProperties.button('rgb(0,150,200)', 'rgb(0,30,40)'), TextProperties.hoverButton('rgb(0,200,255)', 'rgb(0,40,50)'), function(){
 			thisSelected.model.textureCoords[thisSelected.index * 2] = thisMenu.selectedX;
 			thisSelected.model.textureCoords[thisSelected.index * 2 + 1] = thisMenu.selectedY;
+			thisSelected.editor.hasChanges = true;
 			this.state.getManager().setMainComponent(thisSelected.editor);
 			thisSelected.infoMenu.afterTextureCoordsChange();
 		}), 0.6, 0.02, 0.7, 0.09);
-
-		this.addComponent(new ImageComponent(thisSelected.editor.texture, function(x, y){
-			thisMenu.selectedX = x;
-			thisMenu.selectedY = y;
-		}, this.selectedX, this.selectedY), 0, 0.1, 1, 1);
+		this.addComponent(this.imageComponent, 0, 0.1, 1, 1);
 	});
+	menu.imageComponent = new ImageComponent(this.model.texture, function(x, y){
+		menu.selectedX = x;
+		menu.selectedY = y;
+	});
+	return menu;
 };
 
 ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
@@ -5695,7 +5724,7 @@ ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
 		}), 0.6, 0.25, 0.8, 0.33);
 		this.addComponent(new Gui.TextComponent('Edit texture', ModelEditorToolbars.props, ModelEditorToolbars.hoverProps, function(x, y){
 			thisSelected.editor.state.getManager().setMainComponent(thisSelected.editor.imageEditor);
-			thisSelected.editor.imageEditor.setImage(thisSelected.editor.texture);
+			thisSelected.editor.imageEditor.setImage(thisSelected.model.texture);
 		}), 0.3, 0.1, 0.7, 0.2);
 
 		// Functions to update content dynamically
@@ -5710,8 +5739,12 @@ ModelEditorSelectedVertex.prototype.createInfoMenu = function(){
 			this.positionZ.setText('' + thisSelected.model.positions[thisSelected.index * 3 + 2]);
 		};
 		this.afterTextureCoordsChange = function(){
-			this.textureX.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2]);
-			this.textureY.setText('' + thisSelected.model.textureCoords[thisSelected.index * 2 + 1]);
+			const textureX = thisSelected.model.textureCoords[thisSelected.index * 2];
+			const textureY = thisSelected.model.textureCoords[thisSelected.index * 2 + 1];
+			this.textureX.setText('' + textureX);
+			this.textureY.setText('' + textureY);
+			thisSelected.textureCoordsSelect.imageComponent.selectedX = textureX;
+			thisSelected.textureCoordsSelect.imageComponent.selectedY = textureY;
 		};
 		this.afterPartEdit = function(){
 			// Add part combo box
@@ -5900,12 +5933,12 @@ function ImageEditorImageComponent(editor){
 	this.editor = editor;
 
 	this.pressedKeys = {};
-	this.cameraSpeed = 0.1;
+	this.cameraSpeed = 0.01;
 	this.scrollSpeed = 0.1;
 }
 
 ImageEditorImageComponent.prototype.render = function(renderer){
-	renderer.clear('black');
+	renderer.clear('rgb(200,100,200)');
 	const minCameraX = this.minCameraX;
 	const minCameraY = this.minCameraY;
 	const maxCameraX = this.maxCameraX;
@@ -5965,13 +5998,15 @@ ImageEditorImageComponent.prototype.update = function(){
 		this.state.getManager().markDirty();
 	}
 	if (this.pressedKeys['ArrowDown']) {
-		this.minCameraY += this.cameraSpeed;
-		this.maxCameraY += this.cameraSpeed;
+		const speed = this.cameraSpeed * (this.maxCameraX - this.minCameraX);
+		this.minCameraY += speed;
+		this.maxCameraY += speed;
 		this.state.getManager().markDirty();
 	}
 	if (this.pressedKeys['ArrowUp']){
-		this.minCameraY -= this.cameraSpeed;
-		this.maxCameraY -= this.cameraSpeed;
+		const speed = this.cameraSpeed * (this.maxCameraX - this.minCameraX);
+		this.minCameraY -= speed;
+		this.maxCameraY -= speed;
 		this.state.getManager().markDirty();
 	}
 };

@@ -11,8 +11,8 @@ ModelEditorModelComponent.prototype.render = function(renderer){
 
 ModelEditorModelComponent.prototype.update = function(){
 	const k = this.pressedKeys;
-	const cameraSpeed = 1;
-	const objectSpeed = 1;
+	const cameraSpeed = 3;
+	const objectSpeed = 3;
 	if (k['p']) {
 		console.log('camera', this.editor.camera);
 	}
@@ -70,25 +70,39 @@ ModelEditorModelComponent.prototype.update = function(){
 	}
 	if (this.editor.selected) {
 		if (k['ArrowLeft']) {
-			this.editor.selected.move(-objectSpeed, 0, 0);
+			const right = this.editor.camera.getRightVector();
+			this.editor.selected.move(Math.round(-objectSpeed * right.x), Math.round(-objectSpeed * right.y), Math.round(-objectSpeed * right.z));
+			this.editor.hasChanges = true;
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowRight']) {
-			this.editor.selected.move(objectSpeed, 0, 0);
+			const right = this.editor.camera.getRightVector();
+			this.editor.selected.move(Math.round(objectSpeed * right.x), Math.round(objectSpeed * right.y), Math.round(objectSpeed * right.z));
+			this.editor.hasChanges = true;
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowUp']) {
-			if (k['Shift'])
-				this.editor.selected.move(0, objectSpeed, 0);
-			else
-				this.editor.selected.move(0, 0, -objectSpeed);
+			if (k['Shift']){
+				const up = this.editor.camera.getUpVector();
+				this.editor.selected.move(Math.round(objectSpeed * up.x), Math.round(objectSpeed * up.y), Math.round(objectSpeed * up.z));
+			}
+			else {
+				const forward = this.editor.camera.getForwardVector();
+				this.editor.selected.move(Math.round(objectSpeed * forward.x), Math.round(objectSpeed * forward.y), Math.round(objectSpeed * forward.z));
+			}
+			this.editor.hasChanges = true;
 			this.state.getManager().markDirty();
 		}
 		if (k['ArrowDown']) {
-			if (k['Shift'])
-				this.editor.selected.move(0, -objectSpeed, 0);
-			else
-				this.editor.selected.move(0, 0, objectSpeed);
+			if (k['Shift']){
+				const up = this.editor.camera.getUpVector();
+				this.editor.selected.move(Math.round(-objectSpeed * up.x), Math.round(-objectSpeed * up.y), Math.round(-objectSpeed * up.z));
+			}
+			else {
+				const forward = this.editor.camera.getForwardVector();
+				this.editor.selected.move(Math.round(-objectSpeed * forward.x), Math.round(-objectSpeed * forward.y), Math.round(-objectSpeed * forward.z));
+			}
+			this.editor.hasChanges = true;
 			this.state.getManager().markDirty();
 		}
 	}

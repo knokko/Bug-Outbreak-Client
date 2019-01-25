@@ -56,6 +56,7 @@ ModelEditorSelectedVertex.prototype.createTextureCoordsSelect = function(){
 		this.addComponent(new Gui.TextComponent('Done', TextProperties.button('rgb(0,150,200)', 'rgb(0,30,40)'), TextProperties.hoverButton('rgb(0,200,255)', 'rgb(0,40,50)'), function(){
 			thisSelected.model.textureCoords[thisSelected.index * 2] = thisMenu.selectedX;
 			thisSelected.model.textureCoords[thisSelected.index * 2 + 1] = thisMenu.selectedY;
+			thisSelected.editor.hasChanges = true;
 			this.state.getManager().setMainComponent(thisSelected.editor);
 			thisSelected.infoMenu.afterTextureCoordsChange();
 		}), 0.6, 0.02, 0.7, 0.09);

@@ -26,6 +26,7 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 	const metb = ModelEditorToolbars;
 	this.imageEditor = new GuiImageEditor(modelBuilder.texture, function(newTexture){
 		thisModelEditor.builder.texture = newTexture;
+		thisModelEditor.hasChanges = true;
 		this.state.getManager().setMainComponent(thisModelEditor);
 		if (thisModelEditor.selected){
 			thisModelEditor.selected.onTextureChange();

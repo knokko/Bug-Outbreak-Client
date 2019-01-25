@@ -21,21 +21,22 @@ function GuiModelEditor(name, modelBuilder, save, saveAs, exit){
 	this.selectMode = ModelEditorSelectModes.createDefault(this);
 	this.selected = null;
 
+	// Create the bound texture editor
+	const thisModelEditor = this;
+	const metb = ModelEditorToolbars;
+	this.imageEditor = new GuiImageEditor(modelBuilder.texture, function(newTexture){
+		thisModelEditor.builder.texture = newTexture;
+		this.state.getManager().setMainComponent(thisModelEditor);
+		if (thisModelEditor.selected){
+			thisModelEditor.selected.onTextureChange();
+		}
+	}, undefined, function(){
+		thisModelEditor.state.getManager().setMainComponent(thisModelEditor);
+	}, this.backgroundColor, metb.props, metb.hoverProps, metb.upperProps, metb.upperHoverProps, metb.upperActiveProps, metb.props, metb.hoverProps);
 	// Use the same instance for every selected type
 	this.selects = {
 		vertex: new ModelEditorSelectedVertex(this)
 	};
-
-	// Create the bound texture editor
-	this.texture = new Gui.Texture(32, 32);
-	const thisModelEditor = this;
-	const metb = ModelEditorToolbars;
-	this.imageEditor = new GuiImageEditor(this.texture, function(newTexture){
-		thisModelEditor.texture = newTexture.clone();
-		thisModelEditor.state.getManager().setMainComponent(thisModelEditor);
-	}, undefined, function(){
-		thisModelEditor.state.getManager().setMainComponent(thisModelEditor);
-	}, this.backgroundColor, metb.props, metb.hoverProps, metb.upperProps, metb.upperHoverProps, metb.upperActiveProps, metb.props, metb.hoverProps);
 }
 
 extendProtoType(Gui.Menu, GuiModelEditor);

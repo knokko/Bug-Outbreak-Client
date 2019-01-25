@@ -9,12 +9,12 @@ function ImageEditorImageComponent(editor){
 	this.editor = editor;
 
 	this.pressedKeys = {};
-	this.cameraSpeed = 0.1;
+	this.cameraSpeed = 0.01;
 	this.scrollSpeed = 0.1;
 }
 
 ImageEditorImageComponent.prototype.render = function(renderer){
-	renderer.clear('black');
+	renderer.clear('rgb(200,100,200)');
 	const minCameraX = this.minCameraX;
 	const minCameraY = this.minCameraY;
 	const maxCameraX = this.maxCameraX;
@@ -74,13 +74,15 @@ ImageEditorImageComponent.prototype.update = function(){
 		this.state.getManager().markDirty();
 	}
 	if (this.pressedKeys['ArrowDown']) {
-		this.minCameraY += this.cameraSpeed;
-		this.maxCameraY += this.cameraSpeed;
+		const speed = this.cameraSpeed * (this.maxCameraX - this.minCameraX);
+		this.minCameraY += speed;
+		this.maxCameraY += speed;
 		this.state.getManager().markDirty();
 	}
 	if (this.pressedKeys['ArrowUp']){
-		this.minCameraY -= this.cameraSpeed;
-		this.maxCameraY -= this.cameraSpeed;
+		const speed = this.cameraSpeed * (this.maxCameraX - this.minCameraX);
+		this.minCameraY -= speed;
+		this.maxCameraY -= speed;
 		this.state.getManager().markDirty();
 	}
 };

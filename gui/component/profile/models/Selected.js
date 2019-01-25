@@ -1,9 +1,10 @@
 Game.menuComponents.profile.models.selected = new Gui.Menu('rgb(0,150,250)', function(){
 	const thisSelected = this;
 	this.editButton = new Gui.TextComponent('Edit', TextProperties.button('rgb(0,200,0)', 'rgb(0,50,0)'), TextProperties.hoverButton('rgb(0,255,0)', 'rgb(0,80,0)'), function(){
-
-		// TODO set the createdAt of the editor!
-		window.alert('Edit model ' + thisSelected.model.name);
+		const modelOverview = Game.menus.profile.models.overview;
+		const editor = new GuiModelEditor(thisSelected.model.name, new Gui3D.ModelBuilder(thisSelected.model.model), modelOverview.saveOfflineFunction, modelOverview.saveAsFunction, modelOverview.exitFunction);
+		editor.createdAt = thisSelected.model.createdAt;
+		this.state.getManager().setMainComponent(editor);
 	});
 	this.viewButton = new Gui.TextComponent('View', TextProperties.button(), TextProperties.hoverButton(), function(){
 		window.alert('View this model');

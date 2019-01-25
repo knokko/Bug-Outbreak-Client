@@ -81,7 +81,7 @@ Game.models = {
 			texture.data[index * 4] = input.readByte() & 0xFF;
 			texture.data[index * 4 + 1] = input.readByte() & 0xFF;
 			texture.data[index * 4 + 2] = input.readByte() & 0xFF;
-			texture.data[index * 4] = 255;
+			texture.data[index * 4 + 3] = 255;
 		}
 		return texture;
 	},
@@ -131,7 +131,7 @@ Game.models = {
 		for (let index = 0; index < partLength; index++){
 			parts[index] = this.loadSkeletonPart1(input);
 		}
-		return new Gui3D.Skeleton(input);
+		return new Gui3D.Skeleton(parts);
 	},
 	loadSkeletonPart1 : function(input){
 		const parentIndex = input.readByte();

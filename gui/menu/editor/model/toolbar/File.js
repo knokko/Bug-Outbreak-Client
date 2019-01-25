@@ -2,9 +2,8 @@ ModelEditorToolbars.createFile = function(editor){
 	const t = ModelEditorToolbars;
 	const toolbar = new Gui.Toolbar('File', t.upperProps, t.upperHoverProps, t.upperActiveProps, 0.05, 0.05, 0.25, 0.15, function(){
 		this.addComponent(new Gui.TextComponent('Save', t.props, t.hoverProps, function(x, y, button){
-			if (editor.name) {
+			if (editor.name !== undefined) {
 				editor.save();
-				editor.hasChanges = false;
 			} else {
 				editor.saveAs();
 			}
@@ -13,6 +12,8 @@ ModelEditorToolbars.createFile = function(editor){
 			editor.saveAs();
 		}), 0.05);
 		this.addComponent(new Gui.TextComponent('Exit', t.props, t.hoverProps, function(x, y, button){
+
+			// TODO set the hasChanges flag to true when things change!
 			if (editor.hasChanges){
 				const popup = new Gui.Menu(ModelEditorPopups.backgroundColor, function(){
 					this.addComponent(new Gui.TextComponent('Would you like to save?', ModelEditorPopups.labelProps), 0.2, 0.6, 0.8, 0.8);

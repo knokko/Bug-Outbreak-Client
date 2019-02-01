@@ -4,8 +4,8 @@
 	const protocolLogin1 = {
 		process : function(input){
 			if(auth.state.state === auth.state.STATE_LOGIN_1){
-				const salt = input.readJavaString();
-				const tempHasher = input.readInts(4);
+				const salt = input.readString();
+				const halfClientSeed = input.readInts(24);
 				auth.speaker.login2(salt, tempHasher);
 			}
 			else {
@@ -40,9 +40,16 @@
 	const protocolLogin2 = {
 		process : function(input){
 			if(auth.state.state === auth.state.STATE_LOGIN_2){
-				auth.state.password = undefined;
+				auth.state.password = null;
 				auth.state.op = input.readBoolean();
 				auth.state.state = auth.state.STATE_LOGGED_IN;
+				const tempHasher = auth.state.tempHasher;
+				const hash = auth.state.clientHashResult;
+				auth.state.tempHasher = null;
+				auth.state.clientHashResult = null;
+
+				// TODO implement on server, finish constructor and set the decryptor
+				auth.connection.setEncryptor(new PseudoRandom(tempHasher[0], hash[0]));
 				Game.guiManager.setMainComponent(Game.menus.main.afterAuth);
 			}
 			else {

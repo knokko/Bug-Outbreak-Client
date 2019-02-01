@@ -6,8 +6,11 @@
 				auth.startConnection();
 				const output = auth.connection.createOutput();
 				output.writeNumber(auth.code.CtS.LOGIN_1, auth.code.CtS.BITCOUNT, false);
-				output.writeJavaString(username);
-				auth.state.password = password;
+				output.writeString(username);
+
+				// TODO check empty constructor
+				const halfServerSeed = new PseudoRandom().nextInts(24);
+				auth.state.login.password = password;
 				auth.state.state = auth.state.STATE_LOGIN_1;
 				output.terminate();
 			}
@@ -26,7 +29,9 @@
 				output.writeInts(tempHashResult.result);
 				output.writeInts(clientHashResult.encryptor);
 				auth.state.state = auth.state.STATE_LOGIN_2;
-				auth.state.password = undefined;
+				auth.state.tempHasher = tempHasher;
+				auth.state.clientHashResult = clientHashResult.hashResult.hash;
+				auth.state.password = null;
 				output.terminate();
 			}
 			else {

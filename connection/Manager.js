@@ -13,8 +13,12 @@ Game.connectionManager = {
 			ACTION_STATE_ACCOUNT_DATA : 3,
 			ACTION_STATE_REALM_INFO : 4,
 			
-			password : undefined,
 			waitingForRealmInfo : undefined,
+			login : {
+				password : null,
+				clientHashResult : null,
+				halfServerSeed : null
+			},
 			op : false,
 			state : 0,
 			actionState : 0

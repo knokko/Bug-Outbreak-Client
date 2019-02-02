@@ -4,34 +4,36 @@
 		login1 : function(username, password){
 			if(auth.state.state === auth.state.STATE_DEFAULT){
 				auth.startConnection();
+
+				const halfServerSeed = new PseudoRandom().nextInts(24);
+				auth.state.login.password = password;
+				auth.state.login.halfServerSeed = halfServerSeed;
+				auth.state.state = auth.state.STATE_LOGIN_1;
+
 				const output = auth.connection.createOutput();
 				output.writeNumber(auth.code.CtS.LOGIN_1, auth.code.CtS.BITCOUNT, false);
 				output.writeString(username);
-
-				// TODO check empty constructor
-				const halfServerSeed = new PseudoRandom().nextInts(24);
-				auth.state.login.password = password;
-				auth.state.state = auth.state.STATE_LOGIN_1;
+				output.writeInts(halfServerSeed);
 				output.terminate();
 			}
 			else {
-				Game.menus.loginMenu.setLoginError("You can't login while you are authenticating or logged in.");
+				Game.menus.main.login.setLoginError("You can't login while you are authenticating or logged in.");
 			}
 		},
-		login2 : function(salt, tempHasher){
+		login2 : function(salt, halfClientSeed){
 			if(auth.state.state === auth.state.STATE_LOGIN_1){
-				const password = auth.state.password;
-				const clientHashResult = Hasher.clientHash(password, salt);
-				const tempHashResult = Hasher.tempHash(clientHashResult.hashResult, tempHasher[0], tempHasher[1], tempHasher[2], tempHasher[3]);
+				const password = auth.state.login.password;
+				const clientHash = Hasher.clientHash(password, salt);
+
+				const clientStartSeedEncryptor = new Hasher.SimpleEncryptor(Hasher.createRandom(clientHash.serverStartSeed, halfClientSeed));
 				
+				auth.state.state = auth.state.STATE_LOGIN_2;
+				auth.state.login.password = null;
+				auth.state.login.clientHash = clientHash;
+
 				const output = auth.connection.createOutput();
 				output.writeNumber(auth.code.CtS.LOGIN_2, auth.code.CtS.BITCOUNT, false);
-				output.writeInts(tempHashResult.result);
-				output.writeInts(clientHashResult.encryptor);
-				auth.state.state = auth.state.STATE_LOGIN_2;
-				auth.state.tempHasher = tempHasher;
-				auth.state.clientHashResult = clientHashResult.hashResult.hash;
-				auth.state.password = null;
+				output.writeByteArray(clientStartSeedEncryptor.encrypt(clientHash.clientStartSeed));
 				output.terminate();
 			}
 			else {
@@ -42,19 +44,21 @@
 			if(auth.state.state === auth.state.STATE_DEFAULT){
 				auth.startConnection();
 				const salt = username + new Date().getTime();
-				const clientHashResult = Hasher.clientHash(password, salt);
-				const encryptedHashResult = Hasher.encrypt(clientHashResult.hashResult, clientHashResult.encryptor);
+				const clientHash = Hasher.clientHash(password, salt);
 				
 				const output = auth.connection.createOutput();
 				output.writeNumber(auth.code.CtS.REGISTER, auth.code.CtS.BITCOUNT, false);
-				output.writeJavaString(username);
-				output.writeJavaString(salt);
-				output.writeInts(encryptedHashResult.result);
+				output.writeString(username);
+				output.writeString(salt);
+				output.writeBytes(clientHash.testPayload);
+				output.writeInts(clientHash.serverStartSeed);
+				output.writeInts(clientHash.clientSessionSeed);
+				output.writeInts(clientHash.serverSessionSeed);
 				auth.state.state = auth.state.STATE_REGISTER;
 				output.terminate();
 			}
 			else {
-				Game.menus.registerMenu.setRegisterError("You can't register while you are authenticating or logged in.");
+				Game.menus.main.register.setRegisterError("You can't register while you are authenticating or logged in.");
 			}
 		},
 		profileLogin : function(){

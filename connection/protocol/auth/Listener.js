@@ -6,7 +6,7 @@
 			if(auth.state.state === auth.state.STATE_LOGIN_1){
 				const salt = input.readString();
 				const halfClientSeed = input.readInts(24);
-				auth.speaker.login2(salt, tempHasher);
+				auth.speaker.login2(salt, halfClientSeed);
 			}
 			else {
 				weirdServerResponse();
@@ -40,16 +40,27 @@
 	const protocolLogin2 = {
 		process : function(input){
 			if(auth.state.state === auth.state.STATE_LOGIN_2){
-				auth.state.password = null;
-				auth.state.op = input.readBoolean();
-				auth.state.state = auth.state.STATE_LOGGED_IN;
-				const tempHasher = auth.state.tempHasher;
-				const hash = auth.state.clientHashResult;
-				auth.state.tempHasher = null;
-				auth.state.clientHashResult = null;
 
-				// TODO implement on server, finish constructor and set the decryptor
-				auth.connection.setEncryptor(new PseudoRandom(tempHasher[0], hash[0]));
+				// The auth server tells whether or not the client has access to the dev server
+				auth.state.op = input.readBoolean();
+
+				const clientHash = auth.state.login.clientHash;
+
+				const payload = new Hasher.SimpleEncryptor(Hasher.createRandom(clientHash.serverStartSeed, auth.state.login.halfServerSeed)).decrypt(input.readByteArray());
+				const payloadInput = new BitHelper.ByteArrayBitInput(payload);
+				const halfSeed1 = payloadInput.readInts(24);
+				const halfSeed2 = payloadInput.readInts(24);
+				const checkTestPayload = payloadInput.readBytes(300);
+
+				if (!arrayEquals(clientHash.testPayload, checkTestPayload)){
+					auth.state.connection.close();
+					window.alert('Your connection has been corrupted');
+					return;
+				}
+
+				auth.connection.setEncryptor(new Hasher.SimpleEncryptor(Hasher.createRandom(halfSeed1, clientHash.clientSessionSeed)));
+				auth.connection.setDecryptor(new Hasher.SimpleEncryptor(Hasher.createRandom(halfSeed2, clientHash.serverSessionSeed)));
+				auth.state.state = auth.state.STATE_LOGGED_IN;
 				Game.guiManager.setMainComponent(Game.menus.main.afterAuth);
 			}
 			else {
@@ -81,8 +92,13 @@
 	const protocolRegister = {
 		process : function(input){
 			if(auth.state.state === auth.state.STATE_REGISTER){
-				auth.state.state = auth.state.STATE_LOGGED_IN;
-				Game.guiManager.setMainComponent(Game.menus.main.afterAuth);
+				auth.state.state = auth.state.STATE_DEFAULT;
+				const registerMenu = Game.menus.main.register;
+				Game.guiManager.setMainComponent(Game.menus.main.login);
+				auth.speaker.login1(registerMenu.username.text, registerMenu.password.text);
+				registerMenu.username.setText('');
+				registerMenu.password.setText('');
+				registerMenu.repeatPassword.setText('');
 			}
 			else {
 				weirdServerResponse();
@@ -93,6 +109,10 @@
 		process : function(input){
 			if(auth.state.state === auth.state.STATE_REGISTER){
 				auth.state.state = auth.state.STATE_DEFAULT;
+				const registerMenu = Game.menus.main.register;
+				registerMenu.password.setText('');
+				registerMenu.repeatPassword.setText('');
+				registerMenu.username.setText('');
 				const reasonCode = input.readNumber(auth.code.StC.RegisterFail.BITCOUNT, false);
 				if(reasonCode === auth.code.StC.RegisterFail.NAME_IN_USE){
 					Game.menus.main.register.setRegisterError('This username has been taken already');

@@ -16,7 +16,7 @@ Game.connectionManager = {
 			waitingForRealmInfo : undefined,
 			login : {
 				password : null,
-				clientHashResult : null,
+				clientHash : null,
 				halfServerSeed : null
 			},
 			op : false,

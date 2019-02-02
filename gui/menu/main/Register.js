@@ -17,9 +17,9 @@ Game.menus.main.register = new Gui.Menu('rgb(0,150,120)', function(){
 		const menu = Game.menus.main.register;
 		if(menu.password.text === menu.repeatPassword.text){
 			Game.connectionManager.auth.speaker.register(menu.username.text, menu.password.text);
-			menu.password.setText('');
-			menu.repeatPassword.setText('');
 			menu.setRegisterError('');
+
+			// Clear the password later
 		}
 		else {
 			menu.setRegisterError('The password is not equal to the repeat password');
